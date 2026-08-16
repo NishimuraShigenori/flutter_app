@@ -16,7 +16,7 @@ class MemoPage extends StatefulWidget {
 
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
-  final ImagePicker _picker = ImagePicker(); // 写真を選ぶためのリモコン
+  final ImagePicker _picker = ImagePicker(); // 写真をを選ぶためのリモコン
   
   List<Map<String, String>> _memoList = [];
   String _selectedImageBase64 = ''; // 💡 選択された写真を一時的に保存する箱
