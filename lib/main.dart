@@ -28,7 +28,7 @@ class _MemoPageState extends State<MemoPage> {
   // 🔑 【最重要】ここにあなたのCloudinaryの情報を貼り付けてください
   // ==========================================
   final String cloudName = 'ijl7laxp';
-  final String uploadPreset = 'hexdmmxx';
+  final String uploadPreset = 'ml_default';
 
   @override
   void initState() {
