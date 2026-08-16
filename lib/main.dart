@@ -1,5 +1,4 @@
 import 'dart:convert';
-// 👇 1つ目のエラー（Uint8List）を直すために、この一業を一番上に追加しました！
 import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
@@ -56,7 +55,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 【完全Web対応版】写真をインターネット倉庫にアップロードする関数
+  // 🚀 写真をインターネット倉庫にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -66,9 +65,7 @@ class _MemoPageState extends State<MemoPage> {
     });
 
     try {
-      // 💡 2つ目のエラー（non-nullable）対策：型に「?」をつけず「Uint8List」として確実に読み込みます
       final Uint8List imageBytes = await image.readAsBytes();
-
       final url = Uri.parse('https://cloudinary.com');
       
       final request = http.MultipartRequest('POST', url)
@@ -83,22 +80,49 @@ class _MemoPageState extends State<MemoPage> {
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.toBytes();
-        final responseString = String.fromCharCodes(responseData);
-        final jsonMap = jsonDecode(responseString);
+      final responseData = await response.stream.toBytes();
+      final responseString = String.fromCharCodes(responseData);
 
+      if (response.statusCode == 200) {
+        final jsonMap = jsonDecode(responseString);
         setState(() {
           _uploadedImageUrl = jsonMap['secure_url'];
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('アップロードに失敗しました。設定を確認してください。')),
+        if (!mounted) return;
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('アップロード失敗（診断）'),
+            content: Text('ステータスコード: ${response.statusCode}\n\nサーバーからの返答:\n$responseString'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('閉じる'),
+              ),
+            ],
+          ),
         );
       }
     } catch (e) {
-      debugPrint(e.toString());
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('通信エラー（診断）'),
+          content: Text(e.toString()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      );
     } finally {
+      // 💡 タイポ（finaly）を正しい表記（finally）にしっかりと修正しました！
       setState(() {
         _isUploading = false; 
       });
