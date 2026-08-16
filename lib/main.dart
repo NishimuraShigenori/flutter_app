@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // 💡 新しい写真部品
+import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -16,10 +16,10 @@ class MemoPage extends StatefulWidget {
 
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
-  final ImagePicker _picker = ImagePicker(); // 写真をを選ぶためのリモコン
+  final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
-  String _selectedImageBase64 = ''; // 💡 選択された写真を一時的に保存する箱
+  String _selectedImageBase64 = ''; 
 
   @override
   void initState() {
@@ -31,13 +31,13 @@ class _MemoPageState extends State<MemoPage> {
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
     final String jsonString = jsonEncode(_memoList);
-    await prefs.setString('memo_with_image_key', jsonString);
+    await prefs.setString('memo_with_image_v3_key', jsonString);
   }
 
   // 📂 データを読み込む関数
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? jsonString = prefs.getString('memo_with_image_key');
+    final String? jsonString = prefs.getString('memo_with_image_v3_key');
     if (jsonString != null) {
       setState(() {
         final List<dynamic> decoded = jsonDecode(jsonString);
@@ -48,10 +48,8 @@ class _MemoPageState extends State<MemoPage> {
 
   // 📸 写真をアルバムから選択する関数
   Future<void> _pickImage() async {
-    // アルバムから写真を選びます（Webアプリでは自動で写真ファイルが開きます）
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      // 写真データをネット保存用の文字（Base64）に変換します
       final bytes = await image.readAsBytes();
       setState(() {
         _selectedImageBase64 = base64Encode(bytes);
@@ -67,7 +65,6 @@ class _MemoPageState extends State<MemoPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 💡 文字データから画像を復元して大きく表示
             Image.memory(base64Decode(base64Image), fit: BoxFit.contain),
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -90,15 +87,14 @@ class _MemoPageState extends State<MemoPage> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // 入力欄
             TextField(
               controller: _controller, 
               decoration: const InputDecoration(hintText: 'メモを入力してください'),
             ),
             const SizedBox(height: 10),
 
-            // 【新機能】写真を選ぶ・確認するエリア
             Row(
+              // 💡 101行目の打ち間違いを正しい指定（mainAxisAlignment）に修正しました
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
@@ -107,7 +103,6 @@ class _MemoPageState extends State<MemoPage> {
                   label: const Text('写真を追加'),
                 ),
                 const SizedBox(width: 15),
-                // 💡 写真が選ばれていたら、横に小さな確認画面（サムネイル）を出します
                 _selectedImageBase64.isNotEmpty
                     ? Container(
                         width: 50,
@@ -120,7 +115,6 @@ class _MemoPageState extends State<MemoPage> {
             ),
             const SizedBox(height: 15),
 
-            // 追加ボタン
             ElevatedButton(
               onPressed: () {
                 if (_controller.text.isNotEmpty) {
@@ -129,13 +123,12 @@ class _MemoPageState extends State<MemoPage> {
                       '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
 
                   setState(() {
-                    // 💡 テキスト、日付と一緒に「写真データ（image）」もペアにして保存します
                     _memoList.add({
                       'text': _controller.text,
                       'date': formattedDate,
-                      'image': _selectedImageBase64, // 空っぽの場合は空文字が入ります
+                      'image': _selectedImageBase64, 
                     });
-                    _selectedImageBase64 = ''; // 次のために選択をリセット
+                    _selectedImageBase64 = ''; 
                   });
                   _saveData();
                   _controller.clear();
@@ -145,7 +138,6 @@ class _MemoPageState extends State<MemoPage> {
             ),
             const SizedBox(height: 20),
 
-            // 履歴リスト表示
             Expanded(
               child: ListView.builder(
                 itemCount: _memoList.length,
@@ -156,10 +148,9 @@ class _MemoPageState extends State<MemoPage> {
                     color: Colors.grey,
                     margin: const EdgeInsets.symmetric(vertical: 5),
                     child: ListTile(
-                      // 💡 【新機能】メモの左端（leading）に写真のサムネイルを配置します
                       leading: imageStr != null && imageStr.isNotEmpty
                           ? GestureDetector(
-                              onPressed: () => _showLargeImage(imageStr), // 💡 タップで拡大
+                              onTap: () => _showLargeImage(imageStr), 
                               child: Container(
                                 width: 50,
                                 height: 50,
@@ -168,7 +159,7 @@ class _MemoPageState extends State<MemoPage> {
                                 child: Image.memory(base64Decode(imageStr), fit: BoxFit.cover),
                               ),
                             )
-                          : const Icon(Icons.note, size: 40, color: Colors.white), // 写真がない場合はノートのアイコン
+                          : const Icon(Icons.note, size: 40, color: Colors.white), 
                       
                       title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18)),
                       subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
