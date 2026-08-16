@@ -1,4 +1,6 @@
 import 'dart:convert';
+// 👇 1つ目のエラー（Uint8List）を直すために、この一業を一番上に追加しました！
+import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,7 +56,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 写真をインターネット倉庫（Cloudinary）にアップロードする関数
+  // 🚀 【完全Web対応版】写真をインターネット倉庫にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -64,15 +66,21 @@ class _MemoPageState extends State<MemoPage> {
     });
 
     try {
+      // 💡 2つ目のエラー（non-nullable）対策：型に「?」をつけず「Uint8List」として確実に読み込みます
+      final Uint8List imageBytes = await image.readAsBytes();
+
       final url = Uri.parse('https://cloudinary.com');
       
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = uploadPreset
-        ..files.add(await http.MultipartFile.fromPath('file', image.path));
+        ..files.add(http.MultipartFile.fromBytes(
+          'file',
+          imageBytes,
+          filename: image.name,
+        ));
 
       final response = await request.send();
 
-      // 💡 2つ目の警告対策：通信が終わった後、画面がまだ存在するかチェックする安全装置
       if (!mounted) return;
 
       if (response.statusCode == 200) {
@@ -89,7 +97,6 @@ class _MemoPageState extends State<MemoPage> {
         );
       }
     } catch (e) {
-      // 💡 3つ目の警告対策：print ではなく debugPrint を使う
       debugPrint(e.toString());
     } finally {
       setState(() {
