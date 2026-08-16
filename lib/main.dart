@@ -46,9 +46,14 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 📸 写真をアルバムから選択する関数
+ // 📸 写真をアルバムから選択する関数
   Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 400,        // 💡 写真の横幅を最大400ピクセルに縮小して軽量化
+      imageQuality: 50,     // 💡 画質（クオリティ）を50%に圧縮してデータ量を激減させる
+    );
+    
     if (image != null) {
       final bytes = await image.readAsBytes();
       setState(() {
