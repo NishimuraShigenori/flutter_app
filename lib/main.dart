@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -19,7 +20,14 @@ class _MemoPageState extends State<MemoPage> {
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
-  String _selectedImageBase64 = ''; 
+  String _uploadedImageUrl = ''; 
+  bool _isUploading = false;     
+
+  // ==========================================
+  // 🔑 【最重要】ここにあなたのCloudinaryの情報を貼り付けてください
+  // ==========================================
+  final String cloudName = 'ijl7laxp';
+  final String uploadPreset = 'hexdmmxx';
 
   @override
   void initState() {
@@ -31,13 +39,13 @@ class _MemoPageState extends State<MemoPage> {
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
     final String jsonString = jsonEncode(_memoList);
-    await prefs.setString('memo_with_image_v3_key', jsonString);
+    await prefs.setString('memo_with_cloudinary_v1_key', jsonString);
   }
 
   // 📂 データを読み込む関数
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? jsonString = prefs.getString('memo_with_image_v3_key');
+    final String? jsonString = prefs.getString('memo_with_cloudinary_v1_key');
     if (jsonString != null) {
       setState(() {
         final List<dynamic> decoded = jsonDecode(jsonString);
@@ -46,31 +54,59 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
- // 📸 写真をアルバムから選択する関数
-  Future<void> _pickImage() async {
-    final XFile? image = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 400,        // 💡 写真の横幅を最大400ピクセルに縮小して軽量化
-      imageQuality: 50,     // 💡 画質（クオリティ）を50%に圧縮してデータ量を激減させる
-    );
-    
-    if (image != null) {
-      final bytes = await image.readAsBytes();
+  // 🚀 写真をインターネット倉庫（Cloudinary）にアップロードする関数
+  Future<void> _pickAndUploadImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    setState(() {
+      _isUploading = true; 
+    });
+
+    try {
+      final url = Uri.parse('https://cloudinary.com');
+      
+      final request = http.MultipartRequest('POST', url)
+        ..fields['upload_preset'] = uploadPreset
+        ..files.add(await http.MultipartFile.fromPath('file', image.path));
+
+      final response = await request.send();
+
+      // 💡 2つ目の警告対策：通信が終わった後、画面がまだ存在するかチェックする安全装置
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.toBytes();
+        final responseString = String.fromCharCodes(responseData);
+        final jsonMap = jsonDecode(responseString);
+
+        setState(() {
+          _uploadedImageUrl = jsonMap['secure_url'];
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('アップロードに失敗しました。設定を確認してください。')),
+        );
+      }
+    } catch (e) {
+      // 💡 3つ目の警告対策：print ではなく debugPrint を使う
+      debugPrint(e.toString());
+    } finally {
       setState(() {
-        _selectedImageBase64 = base64Encode(bytes);
+        _isUploading = false; 
       });
     }
   }
 
   // 🔍 写真を大きく表示する（ポップアップ）関数
-  void _showLargeImage(String base64Image) {
+  void _showLargeImage(String imageUrl) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.memory(base64Decode(base64Image), fit: BoxFit.contain),
+            Image.network(imageUrl, fit: BoxFit.contain),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('閉じる', style: TextStyle(fontSize: 18)),
@@ -85,7 +121,7 @@ class _MemoPageState extends State<MemoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('写真も残せるメモアプリ'),
+        title: const Text('無限保存・クラウドメモ'),
         backgroundColor: Colors.blue,
       ),
       body: Padding(
@@ -99,21 +135,22 @@ class _MemoPageState extends State<MemoPage> {
             const SizedBox(height: 10),
 
             Row(
-              // 💡 101行目の打ち間違いを正しい指定（mainAxisAlignment）に修正しました
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.image),
-                  label: const Text('写真を追加'),
-                ),
+                _isUploading
+                    ? const CircularProgressIndicator()
+                    : ElevatedButton.icon(
+                        onPressed: _pickAndUploadImage,
+                        icon: const Icon(Icons.cloud_upload),
+                        label: const Text('写真をクラウドに保存'),
+                      ),
                 const SizedBox(width: 15),
-                _selectedImageBase64.isNotEmpty
+                _uploadedImageUrl.isNotEmpty
                     ? Container(
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
-                        child: Image.memory(base64Decode(_selectedImageBase64), fit: BoxFit.cover),
+                        child: Image.network(_uploadedImageUrl, fit: BoxFit.cover),
                       )
                     : const Text('写真なし', style: TextStyle(color: Colors.grey)),
               ],
@@ -131,54 +168,56 @@ class _MemoPageState extends State<MemoPage> {
                     _memoList.add({
                       'text': _controller.text,
                       'date': formattedDate,
-                      'image': _selectedImageBase64, 
+                      'image': _uploadedImageUrl, 
                     });
-                    _selectedImageBase64 = ''; 
+                    _uploadedImageUrl = ''; 
                   });
                   _saveData();
                   _controller.clear();
                 }
               },
-              child: const Text('日時と写真をつけて追加'),
+              child: const Text('クラウドメモを追加'),
             ),
             const SizedBox(height: 20),
 
             Expanded(
-              child: ListView.builder(
-                itemCount: _memoList.length,
-                itemBuilder: (context, index) {
-                  final String? imageStr = _memoList[index]['image'];
-                  
-                  return Card(
-                    color: Colors.grey,
-                    margin: const EdgeInsets.symmetric(vertical: 5),
-                    child: ListTile(
-                      leading: imageStr != null && imageStr.isNotEmpty
-                          ? GestureDetector(
-                              onTap: () => _showLargeImage(imageStr), 
-                              child: Container(
-                                width: 50,
-                                height: 50,
-                                clipBehavior: Clip.antiAlias,
-                                decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
-                                child: Image.memory(base64Decode(imageStr), fit: BoxFit.cover),
-                              ),
-                            )
-                          : const Icon(Icons.note, size: 40, color: Colors.white), 
-                      
-                      title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18)),
-                      subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          setState(() => _memoList.removeAt(index));
-                          _saveData();
-                        },
-                      ),
+              child: _memoList.isEmpty
+                  ? const Center(child: Text('まだ履歴はありません'))
+                  : ListView.builder(
+                      itemCount: _memoList.length,
+                      itemBuilder: (context, index) {
+                        final String? imageUrlStr = _memoList[index]['image'];
+                        
+                        return Card(
+                          color: Colors.grey,
+                          margin: const EdgeInsets.symmetric(vertical: 5),
+                          child: ListTile(
+                            leading: imageUrlStr != null && imageUrlStr.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () => _showLargeImage(imageUrlStr), 
+                                    child: Container(
+                                      width: 50,
+                                      height: 50,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
+                                      child: Image.network(imageUrlStr, fit: BoxFit.cover),
+                                    ),
+                                  )
+                                : const Icon(Icons.note, size: 40, color: Colors.white), 
+                            
+                            title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18)),
+                            subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                setState(() => _memoList.removeAt(index));
+                                _saveData();
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
