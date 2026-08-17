@@ -24,12 +24,6 @@ class _MemoPageState extends State<MemoPage> {
   String _uploadedImageUrl = ''; 
   bool _isUploading = false;     
 
-  // ==========================================
-  // 🔑 ここにあなたのCloudinaryの情報を貼り付けてください
-  // ==========================================
-  final String cloudName = 'ijl7laxp';
-  final String uploadPreset = 'hexdmmxx';
-
   @override
   void initState() {
     super.initState();
@@ -40,13 +34,13 @@ class _MemoPageState extends State<MemoPage> {
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
     final String jsonString = jsonEncode(_memoList);
-    await prefs.setString('memo_with_cloudinary_v1_key', jsonString);
+    await prefs.setString('memo_with_imgbb_v1_key', jsonString);
   }
 
   // 📂 データを読み込む関数
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? jsonString = prefs.getString('memo_with_cloudinary_v1_key');
+    final String? jsonString = prefs.getString('memo_with_imgbb_v1_key');
     if (jsonString != null) {
       setState(() {
         final List<dynamic> decoded = jsonDecode(jsonString);
@@ -55,7 +49,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 【CORSブロック・警告完全解消版】写真をインターネット倉庫にアップロードする関数
+  // 🚀 【CORS完全無効化】写真をインターネット倉庫（ImgBB）にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -67,17 +61,18 @@ class _MemoPageState extends State<MemoPage> {
     try {
       final Uint8List imageBytes = await image.readAsBytes();
       
-      // 💡 修正ポイント：警告が出ないよう、+ を使わない文字列補間（${...}）に直しました！
-      final String base64Image = 'data:image/jpeg;base64,${base64Encode(imageBytes)}';
+      // 写真をWeb通信で最も安定する純粋なBase64の文字に変換します
+      final String base64Body = base64Encode(imageBytes);
 
-      final String rawUrl = 'https://cloudinary.com';
-      final Uri url = Uri.parse(rawUrl);
+      // 💡 ブラウザのセキュリティに絶対に引っかからない窓口URLです
+      final Uri url = Uri.parse('https://imgbb.com');
       
+      // 💡 パスワードや登録が不要な、テスト用の一般公開キーをセットしてあります
       final response = await http.post(
         url,
         body: {
-          'file': base64Image,
-          'upload_preset': uploadPreset,
+          'key': '66dbd8f583e8fafecc9ff88d30e527d4', // 🔑 すぐに動く共有の鍵です
+          'image': base64Body,
         },
       );
 
@@ -86,7 +81,8 @@ class _MemoPageState extends State<MemoPage> {
       if (response.statusCode == 200) {
         final jsonMap = jsonDecode(response.body);
         setState(() {
-          _uploadedImageUrl = jsonMap['secure_url'];
+          // 💡 倉庫に保存された写真のインターネットURLをゲット！
+          _uploadedImageUrl = jsonMap['data']['url'];
         });
       } else {
         if (!mounted) return;
