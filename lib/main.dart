@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,7 +27,7 @@ class _MemoPageState extends State<MemoPage> {
   // 🔑 【最重要】ここにあなたのCloudinaryの情報を貼り付けてください
   // ==========================================
   final String cloudName = 'ijl7laxp';
-  final String uploadPreset = 'ml_default';
+  final String uploadPreset = 'flutter-app';
 
   @override
   void initState() {
@@ -55,7 +54,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 写真をインターネット倉庫にアップロードする関数
+  // 🚀 写真をインターネット倉庫（Cloudinary）にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -65,64 +64,34 @@ class _MemoPageState extends State<MemoPage> {
     });
 
     try {
-      final Uint8List imageBytes = await image.readAsBytes();
       final url = Uri.parse('https://cloudinary.com');
       
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = uploadPreset
-        ..files.add(http.MultipartFile.fromBytes(
-          'file',
-          imageBytes,
-          filename: image.name,
-        ));
+        ..files.add(await http.MultipartFile.fromPath('file', image.path));
 
       final response = await request.send();
 
+      // 💡 2つ目の警告対策：通信が終わった後、画面がまだ存在するかチェックする安全装置
       if (!mounted) return;
 
-      final responseData = await response.stream.toBytes();
-      final responseString = String.fromCharCodes(responseData);
-
       if (response.statusCode == 200) {
+        final responseData = await response.stream.toBytes();
+        final responseString = String.fromCharCodes(responseData);
         final jsonMap = jsonDecode(responseString);
+
         setState(() {
           _uploadedImageUrl = jsonMap['secure_url'];
         });
       } else {
-        if (!mounted) return;
-
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('アップロード失敗（診断）'),
-            content: Text('ステータスコード: ${response.statusCode}\n\nサーバーからの返答:\n$responseString'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('閉じる'),
-              ),
-            ],
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('アップロードに失敗しました。設定を確認してください。')),
         );
       }
     } catch (e) {
-      if (!mounted) return;
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('通信エラー（診断）'),
-          content: Text(e.toString()),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('閉じる'),
-            ),
-          ],
-        ),
-      );
+      // 💡 3つ目の警告対策：print ではなく debugPrint を使う
+      debugPrint(e.toString());
     } finally {
-      // 💡 タイポ（finaly）を正しい表記（finally）にしっかりと修正しました！
       setState(() {
         _isUploading = false; 
       });
