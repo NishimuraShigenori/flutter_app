@@ -55,7 +55,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 【警告完全解消版】写真をインターネット倉庫にアップロードする関数
+  // 🚀 【CORSブロック・警告完全解消版】写真をインターネット倉庫にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -67,27 +67,24 @@ class _MemoPageState extends State<MemoPage> {
     try {
       final Uint8List imageBytes = await image.readAsBytes();
       
-      // 💡 修正ポイント：警告が出ないよう、Flutterが推奨する「文字列補間（$）」を使った綺麗な書き方に直しました！
+      // 💡 修正ポイント：警告が出ないよう、+ を使わない文字列補間（${...}）に直しました！
+      final String base64Image = 'data:image/jpeg;base64,${base64Encode(imageBytes)}';
+
       final String rawUrl = 'https://cloudinary.com';
       final Uri url = Uri.parse(rawUrl);
       
-      final request = http.MultipartRequest('POST', url)
-        ..fields['upload_preset'] = uploadPreset
-        ..files.add(http.MultipartFile.fromBytes(
-          'file',
-          imageBytes,
-          filename: image.name,
-        ));
-
-      final response = await request.send();
+      final response = await http.post(
+        url,
+        body: {
+          'file': base64Image,
+          'upload_preset': uploadPreset,
+        },
+      );
 
       if (!mounted) return;
 
-      final responseData = await response.stream.toBytes();
-      final responseString = String.fromCharCodes(responseData);
-
       if (response.statusCode == 200) {
-        final jsonMap = jsonDecode(responseString);
+        final jsonMap = jsonDecode(response.body);
         setState(() {
           _uploadedImageUrl = jsonMap['secure_url'];
         });
@@ -98,7 +95,7 @@ class _MemoPageState extends State<MemoPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('アップロード失敗（診断）'),
-            content: Text('ステータスコード: ${response.statusCode}\n\nサーバーからの返答:\n$responseString'),
+            content: Text('ステータスコード: ${response.statusCode}\n\nサーバーからの返答:\n${response.body}'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
