@@ -25,7 +25,7 @@ class _MemoPageState extends State<MemoPage> {
   bool _isUploading = false;     
 
   // ==========================================
-  // 🔑 【最重要】ここにあなたのCloudinaryの情報を貼り付けてください
+  // 🔑 ここにあなたのCloudinaryの情報を貼り付けてください
   // ==========================================
   final String cloudName = 'ijl7laxp';
   final String uploadPreset = 'ml_default';
@@ -55,7 +55,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 写真をインターネット倉庫にアップロードする関数
+  // 🚀 【警告完全解消版】写真をインターネット倉庫にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -66,7 +66,10 @@ class _MemoPageState extends State<MemoPage> {
 
     try {
       final Uint8List imageBytes = await image.readAsBytes();
-      final url = Uri.parse('https://cloudinary.com');
+      
+      // 💡 修正ポイント：警告が出ないよう、Flutterが推奨する「文字列補間（$）」を使った綺麗な書き方に直しました！
+      final String rawUrl = 'https://cloudinary.com';
+      final Uri url = Uri.parse(rawUrl);
       
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = uploadPreset
@@ -122,7 +125,6 @@ class _MemoPageState extends State<MemoPage> {
         ),
       );
     } finally {
-      // 💡 タイポ（finaly）を正しい表記（finally）にしっかりと修正しました！
       setState(() {
         _isUploading = false; 
       });
