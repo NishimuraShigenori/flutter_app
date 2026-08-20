@@ -71,7 +71,7 @@ class _MemoPageState extends State<MemoPage> {
       final response = await http.post(
         url,
         body: {
-          'key': 'あなたの新しいImgBBの鍵', // 🔑 あなた専用のAPIキーを入れてください！
+          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', // 🔑 あなた専用のAPIキーを入れてください！
           'image': base64Body,
         },
       );
