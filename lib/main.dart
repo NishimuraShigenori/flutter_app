@@ -49,7 +49,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 【CORS完全突破版】写真をインターネット倉庫（ImgBB）にアップロードする関数
+  // 🚀 写真をインターネット倉庫（ImgBB）にアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -62,17 +62,16 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 💡 修正ポイント：Uri.parse のバグを回避するため、スキームとホストを分解してブラウザに誤認させない確実な形で定義します
       final Uri url = Uri(
         scheme: 'https',
-        host: 'api.imgbb.com',
+        host: '://imgbb.com',
         path: '/1/upload',
       );
       
       final response = await http.post(
         url,
         body: {
-          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', // 🔑 すぐに動く共有の鍵です
+          'key': 'あなたの新しいImgBBの鍵', // 🔑 あなた専用のAPIキーを入れてください！
           'image': base64Body,
         },
       );
@@ -140,6 +139,33 @@ class _MemoPageState extends State<MemoPage> {
           ],
         ),
       ),
+    );
+  }
+
+  // 🗑️ 【新機能】削除を確認するポップアップ画面を表示する関数
+  void _showDeleteConfirmDialog(int index) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('メモの削除確認'),
+          content: const Text('このメモを本当に削除してもよろしいですか？\n削除したメモは元に戻せません。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context), // 「いいえ」で閉じる
+              child: const Text('いいえ', style: TextStyle(color: Colors.grey, fontSize: 16)),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() => _memoList.removeAt(index)); // 実際に消す
+                _saveData(); // 保存する
+                Navigator.pop(context); // 閉じる
+              },
+              child: const Text('はい', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -215,7 +241,8 @@ class _MemoPageState extends State<MemoPage> {
                         final String? imageUrlStr = _memoList[index]['image'];
                         
                         return Card(
-                          color: Colors.grey,
+                          // 💡 改善ポイント①：背景色を濃いグレーから、目に優しい「超淡いブルーグレー」に変えました！
+                          color: const Color(0xFFF0F4F8), 
                           margin: const EdgeInsets.symmetric(vertical: 5),
                           child: ListTile(
                             leading: imageUrlStr != null && imageUrlStr.isNotEmpty
@@ -229,15 +256,17 @@ class _MemoPageState extends State<MemoPage> {
                                       child: Image.network(imageUrlStr, fit: BoxFit.cover),
                                     ),
                                   )
-                                : const Icon(Icons.note, size: 40, color: Colors.white), 
+                                // 💡 改善ポイント②：アイコンの色を白から、淡い背景に映える「青グレー」に変えて見やすくしました！
+                                : const Icon(Icons.note, size: 40, color: Colors.blueGrey), 
                             
-                            title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18)),
+                            // 💡 改善ポイント③：文字色を「黒」に指定し、パッと一瞬で読めるようにしました！
+                            title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
                             subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
                             trailing: IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () {
-                                setState(() => _memoList.removeAt(index));
-                                _saveData();
+                                // 💡 改善ポイント④：いきなり消さず、確認ポップアップを呼び出すように変更！
+                                _showDeleteConfirmDialog(index); 
                               },
                             ),
                           ),
