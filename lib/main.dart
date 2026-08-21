@@ -62,7 +62,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      final Uri url = Uri.parse('https://imgbb.com');
+      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
         url,
