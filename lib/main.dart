@@ -62,12 +62,12 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
+      final Uri url = Uri.parse('https://imgbb.com');
       
       final response = await http.post(
         url,
         body: {
-          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', // 🔑 あなた専用のAPIキーを入れてください！
+          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', // 🔑 あなた専用のAPIキーを入れてください
           'image': base64Body,
         },
       );
@@ -138,7 +138,7 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗑️ 【新機能】削除を確認するポップアップ画面を表示する関数
+  // 🗑️ 削除を確認するポップアップ画面を表示する関数
   void _showDeleteConfirmDialog(int index) {
     showDialog(
       context: context,
@@ -148,14 +148,14 @@ class _MemoPageState extends State<MemoPage> {
           content: const Text('このメモを本当に削除してもよろしいですか？\n削除したメモは元に戻せません。'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context), // 「いいえ」で閉じる
+              onPressed: () => Navigator.pop(context), 
               child: const Text('いいえ', style: TextStyle(color: Colors.grey, fontSize: 16)),
             ),
             TextButton(
               onPressed: () {
-                setState(() => _memoList.removeAt(index)); // 実際に消す
-                _saveData(); // 保存する
-                Navigator.pop(context); // 閉じる
+                setState(() => _memoList.removeAt(index)); 
+                _saveData(); 
+                Navigator.pop(context); 
               },
               child: const Text('はい', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
@@ -237,7 +237,6 @@ class _MemoPageState extends State<MemoPage> {
                         final String? imageUrlStr = _memoList[index]['image'];
                         
                         return Card(
-                          // 💡 改善ポイント①：背景色を濃いグレーから、目に優しい「超淡いブルーグレー」に変えました！
                           color: const Color(0xFFF0F4F8), 
                           margin: const EdgeInsets.symmetric(vertical: 5),
                           child: ListTile(
@@ -252,16 +251,15 @@ class _MemoPageState extends State<MemoPage> {
                                       child: Image.network(imageUrlStr, fit: BoxFit.cover),
                                     ),
                                   )
-                                // 💡 改善ポイント②：アイコンの色を白から、淡い背景に映える「青グレー」に変えて見やすくしました！
-                                : const Icon(Icons.note, size: 40, color: Colors.blueGrey), 
+                                // 💡 修正ポイント①：Webで絶対に文字化けしない安全なフォント定義（MaterialIcons）に変更
+                                : const Icon(IconData(0xe449, fontFamily: 'MaterialIcons'), size: 40, color: Colors.blueGrey), 
                             
-                            // 💡 改善ポイント③：文字色を「黒」に指定し、パッと一瞬で読めるようにしました！
                             title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
                             subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
                             trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              // 💡 修正ポイント②：Webで絶対に文字化けしない安全なフォント定義（MaterialIcons）に変更
+                              icon: const Icon(IconData(0xe1b9, fontFamily: 'MaterialIcons'), color: Colors.red),
                               onPressed: () {
-                                // 💡 改善ポイント④：いきなり消さず、確認ポップアップを呼び出すように変更！
                                 _showDeleteConfirmDialog(index); 
                               },
                             ),
