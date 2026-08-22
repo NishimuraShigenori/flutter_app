@@ -18,11 +18,13 @@ class MemoPage extends StatefulWidget {
 
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _searchController = TextEditingController(); // 🔍 検索窓用
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
   String _uploadedImageUrl = ''; 
   bool _isUploading = false;     
+  String _searchKeyword = ''; // 🔍 検索キーワードを覚える変数
 
   @override
   void initState() {
@@ -49,7 +51,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🚀 写真をインターネット倉庫（ImgBB）にアップロードする関数
+  // 🚀 写真をImgBBにアップロードする関数
   Future<void> _pickAndUploadImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
@@ -62,13 +64,13 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // ⭕ にしむら様のご指摘通り、写真を送信するための「正しい窓口URL」に修正しました！
+      // ⭕ 正しい通信URLに修正完了しています！
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
         url,
         body: {
-          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', // 🔑 あなた専用のAPIキーを入れてください
+          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', 
           'image': base64Body,
         },
       );
@@ -82,35 +84,23 @@ class _MemoPageState extends State<MemoPage> {
         });
       } else {
         if (!mounted) return;
-
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('アップロード失敗（診断）'),
-            content: Text('ステータスコード: ${response.statusCode}\n\nサーバーからの返答:\n${response.body}'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('閉じる'),
-              ),
-            ],
+            title: const Text('アップロード失敗'),
+            content: Text('コード: ${response.statusCode}\n\n${response.body}'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる'))],
           ),
         );
       }
     } catch (e) {
       if (!mounted) return;
-
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('通信エラー（診断）'),
+          title: const Text('通信エラー'),
           content: Text(e.toString()),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('閉じる'),
-            ),
-          ],
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる'))],
         ),
       );
     } finally {
@@ -120,7 +110,7 @@ class _MemoPageState extends State<MemoPage> {
     }
   }
 
-  // 🔍 写真を大きく表示する（ポップアップ）関数
+  // 🔍 写真を大きく表示する関数
   void _showLargeImage(String imageUrl) {
     showDialog(
       context: context,
@@ -138,8 +128,7 @@ class _MemoPageState extends State<MemoPage> {
       ),
     );
   }
-
-  // 🗑️ 削除を確認するポップアップ画面を表示する関数
+  // 🗑️ 削除を確認する関数
   void _showDeleteConfirmDialog(int index) {
     showDialog(
       context: context,
@@ -168,6 +157,12 @@ class _MemoPageState extends State<MemoPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔍 検索キーワードに一致するメモだけを絞り込むフィルター処理
+    final filteredList = _memoList.where((memo) {
+      final memoText = memo['text'] ?? '';
+      return memoText.toLowerCase().contains(_searchKeyword.toLowerCase());
+    }).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('無限保存・クラウドメモ'),
@@ -227,15 +222,44 @@ class _MemoPageState extends State<MemoPage> {
               child: const Text('クラウドメモを追加'),
             ),
             const SizedBox(height: 20),
+            
+            // 🔍 新機能：スタイリッシュな検索窓を追加
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: '🔍 メモを検索...',
+                prefixIcon: const Icon(Icons.search, color: Colors.blueGrey),
+                suffixIcon: _searchKeyword.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _searchKeyword = '';
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchKeyword = value; // 文字が打たれるたびに検索窓をリアルタイム更新
+                });
+              },
+            ),
+            const SizedBox(height: 15),
 
             Expanded(
-              child: _memoList.isEmpty
-                  ? const Center(child: Text('まだ履歴はありません'))
+              child: filteredList.isEmpty
+                  ? const Center(child: Text('一致するメモはありません'))
                   : ListView.builder(
-                      itemCount: _memoList.length,
+                      itemCount: filteredList.length,
                       itemBuilder: (context, index) {
-                        final String? imageUrlStr = _memoList[index]['image'];
-                        
+                        final String? imageUrlStr = filteredList[index]['image'];
+                        final originalIndex = _memoList.indexOf(filteredList[index]);
+
                         return Card(
                           color: const Color(0xFFF0F4F8), 
                           margin: const EdgeInsets.symmetric(vertical: 5),
@@ -251,14 +275,14 @@ class _MemoPageState extends State<MemoPage> {
                                       child: Image.network(imageUrlStr, fit: BoxFit.cover),
                                     ),
                                   )
-                                : const Text('📝', style: TextStyle(fontSize: 32)),  
+                                : const Text('📝', style: TextStyle(fontSize: 32)), 
                             
-                            title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
-                            subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                            title: Text(filteredList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
+                            subtitle: Text(filteredList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
                             trailing: IconButton(
                               icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
                               onPressed: () {
-                                _showDeleteConfirmDialog(index); 
+                                _showDeleteConfirmDialog(originalIndex); 
                               },
                             ),
                           ),
