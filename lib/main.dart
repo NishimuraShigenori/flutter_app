@@ -62,7 +62,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
+      final Uri url = Uri.parse('https://imgbb.com');
       
       final response = await http.post(
         url,
@@ -251,14 +251,14 @@ class _MemoPageState extends State<MemoPage> {
                                       child: Image.network(imageUrlStr, fit: BoxFit.cover),
                                     ),
                                   )
-                                // 💡 修正ポイント①：Webで絶対に文字化けしない安全なフォント定義（MaterialIcons）に変更
-                                : const Icon(IconData(0xe449, fontFamily: 'Material_Icons'), size: 40, color: Colors.blueGrey), 
+                                // 💡 本来の最もシンプルな標準アイコン指定に戻しました
+                                : const Icon(Icons.note, size: 40, color: Colors.blueGrey), 
                             
                             title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
                             subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
                             trailing: IconButton(
-                              // 💡 修正ポイント②：Webで絶対に文字化けしない安全なフォント定義（MaterialIcons）に変更
-                              icon: const Icon(IconData(0xe1b9, fontFamily: 'Material_Icons'), color: Colors.red),
+                              // 💡 本来の最もシンプルな標準アイコン指定に戻しました
+                              icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () {
                                 _showDeleteConfirmDialog(index); 
                               },
