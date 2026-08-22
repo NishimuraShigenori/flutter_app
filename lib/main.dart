@@ -64,13 +64,13 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // ⭕ にしむら様のご指摘通り、100%完全に正しいAPI専用URLに入れ替え完了いたしました！
+      // 🔗 正しいAPIエンドポイントURLへの設定を確認しました
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
         url,
         body: {
-          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', 
+          'key': 'あなたの新しいImgBBの鍵', 
           'image': base64Body,
         },
       );
@@ -223,20 +223,23 @@ class _MemoPageState extends State<MemoPage> {
             ),
             const SizedBox(height: 20),
             
-            // 🔍 新機能：スタイリッシュな検索窓（prefixIconは削除済みです！）
+            // 🔍 検索窓（クリアボタンを本物のテキスト絵文字「❌」に変更済み）
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: '🔍 メモを検索...',
                 suffixIcon: _searchKeyword.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.grey),
-                        onPressed: () {
+                    ? InkWell(
+                        onTap: () {
                           setState(() {
                             _searchController.clear();
                             _searchKeyword = '';
                           });
                         },
+                        child: const Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: Text('❌', style: TextStyle(fontSize: 16)),
+                        ),
                       )
                     : null,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
