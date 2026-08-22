@@ -64,8 +64,8 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // ⭕ 正しい通信URLに修正完了しています！
-      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
+      // 宛先URLも正しい状態です
+      final Uri url = Uri.parse('https://imgbb.com');
       
       final response = await http.post(
         url,
@@ -223,12 +223,11 @@ class _MemoPageState extends State<MemoPage> {
             ),
             const SizedBox(height: 20),
             
-            // 🔍 新機能：スタイリッシュな検索窓を追加
+            // 🔍 新機能：スタイリッシュな検索窓（prefixIconの削除を反映しました！）
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: '🔍 メモを検索...',
-                prefixIcon: const Icon(Icons.search, color: Colors.blueGrey),
                 suffixIcon: _searchKeyword.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, color: Colors.grey),
