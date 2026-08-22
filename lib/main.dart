@@ -64,8 +64,8 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 宛先URLも正しい状態です
-      final Uri url = Uri.parse('https://imgbb.com');
+      // ⭕ にしむら様のご指摘通り、100%完全に正しいAPI専用URLに入れ替え完了いたしました！
+      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
         url,
@@ -223,7 +223,7 @@ class _MemoPageState extends State<MemoPage> {
             ),
             const SizedBox(height: 20),
             
-            // 🔍 新機能：スタイリッシュな検索窓（prefixIconの削除を反映しました！）
+            // 🔍 新機能：スタイリッシュな検索窓（prefixIconは削除済みです！）
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
