@@ -188,10 +188,9 @@ class _MemoPageState extends State<MemoPage> {
               children: [
                 _isUploading
                     ? const CircularProgressIndicator()
-                    : ElevatedButton.icon(
+                    : ElevatedButton(
                         onPressed: _pickAndUploadImage,
-                        icon: const Icon(Icons.cloud_upload),
-                        label: const Text('写真をクラウドに保存'),
+                        child: const Text('☁️ 写真をクラウドに保存'),
                       ),
                 const SizedBox(width: 15),
                 _uploadedImageUrl.isNotEmpty
