@@ -252,12 +252,12 @@ class _MemoPageState extends State<MemoPage> {
                                       child: Image.network(imageUrlStr, fit: BoxFit.cover),
                                     ),
                                   )
-                                : const Icon(Icons.note, size: 40, color: Colors.blueGrey), 
+                                : const Text('📝', style: TextStyle(fontSize: 32)),  
                             
                             title: Text(_memoList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
                             subtitle: Text(_memoList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
                             trailing: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
                               onPressed: () {
                                 _showDeleteConfirmDialog(index); 
                               },
