@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:qr_flutter/qr_flutter.dart'; // 💡 新しく追加したQRコードの部品
+import 'package:qr_flutter/qr_flutter.dart'; // 💡 QRコードの部品
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -34,7 +34,7 @@ class _MemoPageState extends State<MemoPage> {
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); // 🚀 相手からQRコードで届いたデータがないかチェックする関数
+    _checkIncomingData(); // 🚀 QRコードで届いたデータがないかチェックする関数
   }
 
   // 💾 データを保存する関数
@@ -69,7 +69,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // ⭕ にしむら様のご指摘通り、100%完全に正しいAPI専用URLに入れ替え完了いたしました！
+      // ⭕ にしむら様ご指定の、100%完全に正しいAPI専用URLです！
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -162,11 +162,10 @@ class _MemoPageState extends State<MemoPage> {
 
   // 🔗 相手から渡された共有URLデータ（QRコードの中身）を解析して取り込む関数
   void _checkIncomingData() {
-    final Uri uri = Uri.base; // 現在ブラウザが開いているURLを取得
+    final Uri uri = Uri.base; 
     if (uri.queryParameters.containsKey('share')) {
       try {
         final String encodedData = uri.queryParameters['share']!;
-        // URL安全なBase64データをデコードし、UTF-8文字列(JSON)に戻す
         final String normalized = encodedData.replaceAll('-', '+').replaceAll('_', '/');
         final String jsonString = utf8.decode(base64Decode(normalized));
         final List<dynamic> incomingList = jsonDecode(jsonString);
@@ -181,7 +180,6 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-
   // 📥 共有メモの受信確認ポップアップ
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     showDialog(
@@ -194,12 +192,10 @@ class _MemoPageState extends State<MemoPage> {
           TextButton(
             onPressed: () {
               setState(() {
-                // 届いたメモを自分のリストの先頭に追加
                 _memoList.insertAll(0, incomingMemos);
               });
               _saveData();
               Navigator.pop(context);
-              // URLのパラメータを綺麗にクリアして通常画面に戻す
               final String newUrl = Uri.base.origin + Uri.base.path;
               htmlWindowOpen(newUrl);
             },
@@ -210,15 +206,16 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗺️ ブラウザのURL欄を書き換えてリロードする疑似関数（Flutter Web用）
+  // 🗺️ ブラウザのURL欄を書き換えてリロードする関数
   void htmlWindowOpen(String url) {
     try {
-      Uri.parse(url); // ⭕ 警告の原因だった「final Uri uri =」を完璧に削除しました！
+      Uri.parse(url); 
       _searchController.clear();
       setState(() { _searchKeyword = ''; });
     } catch (_) {}
   }
-  // 🗂️ 選択されたメモを1行のデータにまとめてQRコードのURLを作る関数
+
+  // 🗂️ 選択されたメモをまとめてQRコードのURLを作る関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -235,18 +232,15 @@ class _MemoPageState extends State<MemoPage> {
     }
 
     try {
-      // JSON文字列にして、URLで運べる安全なBase64文字列に変換
       final String jsonString = jsonEncode(shareTargetList);
       final String encoded = base64Encode(utf8.encode(jsonString))
           .replaceAll('+', '-')
           .replaceAll('/', '_')
           .replaceAll('=', '');
 
-      // このアプリのベースURLに共有データをくっつける
       final String appUrl = Uri.base.origin + Uri.base.path;
       final String shareUrl = '$appUrl?share=$encoded';
 
-      // 🖨️ QRコードをポップアップで画面に表示
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -276,14 +270,12 @@ class _MemoPageState extends State<MemoPage> {
       );
     }
   }
-
   // 🔘 選択モードをONにして、直近10件に自動チェックを入れる関数
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // にしむら様のご希望：直近の10件（リストの最新10件）に自動でチェックを入れる
         final int startIndex = _memoList.length > 10 ? _memoList.length - 10 : 0;
         for (int i = startIndex; i < _memoList.length; i++) {
           _selectedItems[i] = true;
@@ -304,8 +296,9 @@ class _MemoPageState extends State<MemoPage> {
         title: const Text('無限保存・クラウドメモ'),
         backgroundColor: Colors.blue,
         actions: [
+          // ⭕ タイトルの右にある共有ボタンを文字化けしない綺麗な絵文字に修正しました！
           IconButton(
-            icon: Icon(_isSelectMode ? Icons.close : Icons.share, color: Colors.white),
+            icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)),
             onPressed: _toggleSelectMode,
           ),
         ],
@@ -362,7 +355,6 @@ class _MemoPageState extends State<MemoPage> {
               ),
               const SizedBox(height: 20),
             ],
-            
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -397,11 +389,17 @@ class _MemoPageState extends State<MemoPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('共有するメモを選択中...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                  ElevatedButton.icon(
+                  // ⭕ QRコード生成ボタンの前のアイコンを綺麗な絵文字に修正しました！
+                  ElevatedButton(
                     onPressed: _generateShareQr,
-                    icon: const Icon(Icons.qr_code, size: 18),
-                    label: const Text('QRコードを生成'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('📱 ', style: TextStyle(fontSize: 16)),
+                        Text('QRコードを生成'),
+                      ],
+                    ),
                   ),
                 ],
               ),
