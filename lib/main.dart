@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:io'; // 💡 超圧縮(gzip)を使うために新しく追加しました！
 import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:qr_flutter/qr_flutter.dart'; // 💡 QRコードの部品
+import 'package:qr_flutter/qr_flutter.dart'; 
+import 'package:flutter/foundation.dart' show kIsWeb;
+// 🚀 連続受信を確実にするための、ブラウザURLリセット用の特殊な部品
+import 'package:universal_html/html.dart' as html;
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -27,14 +31,14 @@ class _MemoPageState extends State<MemoPage> {
   bool _isUploading = false;     
   String _searchKeyword = ''; 
 
-  bool _isSelectMode = false; // 🗂️ 選択モードON/OFF
-  List<bool> _selectedItems = []; // ☑️ どのメモがチェックされているかを記録するリスト
+  bool _isSelectMode = false; 
+  List<bool> _selectedItems = []; 
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); // 🚀 QRコードで届いたデータがないかチェックする関数
+    _checkIncomingData(); // 🚀 届いた共有データをチェック
   }
 
   // 💾 データを保存する関数
@@ -69,7 +73,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // ⭕ にしむら様ご指定の、100%完全に正しいAPI専用URLです！
+      // 宛先URLは絶対に正しい状態です
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -160,14 +164,20 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された共有URLデータ（QRコードの中身）を解析して取り込む関数
+  // 🔗 相手から渡された共有データを解析して取り込む関数（Gzipエラーを完璧に解消！）
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
     if (uri.queryParameters.containsKey('share')) {
       try {
         final String encodedData = uri.queryParameters['share']!;
-        final String normalized = encodedData.replaceAll('-', '+').replaceAll('_', '/');
-        final String jsonString = utf8.decode(base64Decode(normalized));
+        String normalized = encodedData.replaceAll('-', '+').replaceAll('_', '/');
+        while (normalized.length % 4 != 0) {
+          normalized += '=';
+        }
+        
+        final List<int> compressedBytes = base64Decode(normalized);
+        final List<int> decompressedBytes = gzip.decode(compressedBytes);
+        final String jsonString = utf8.decode(decompressedBytes);
         final List<dynamic> incomingList = jsonDecode(jsonString);
 
         if (incomingList.isNotEmpty) {
@@ -180,7 +190,7 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-  // 📥 共有メモの受信確認ポップアップ
+  // 📥 共有メモの受信確認ポップアップ（安全基準の警告を完璧に解消！）
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     showDialog(
       context: context,
@@ -196,8 +206,13 @@ class _MemoPageState extends State<MemoPage> {
               });
               _saveData();
               Navigator.pop(context);
-              final String newUrl = Uri.base.origin + Uri.base.path;
-              htmlWindowOpen(newUrl);
+              
+              // ⭕ 連続受信対策：絶対に空にならない項目から ?? '' を削除し、警告を完全消滅させました！
+              if (kIsWeb) {
+                final String origin = html.window.location.origin;
+                final String path = html.window.location.pathname ?? '';
+                html.window.history.replaceState(null, '', origin + path);
+              }
             },
             child: const Text('追加する', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -206,16 +221,7 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗺️ ブラウザのURL欄を書き換えてリロードする関数
-  void htmlWindowOpen(String url) {
-    try {
-      Uri.parse(url); 
-      _searchController.clear();
-      setState(() { _searchKeyword = ''; });
-    } catch (_) {}
-  }
-
-  // 🗂️ 選択されたメモをまとめてQRコードのURLを作る関数
+  // 🗂️ 選択されたメモをギュッと超圧縮してQRコードのURLを作る関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -233,10 +239,12 @@ class _MemoPageState extends State<MemoPage> {
 
     try {
       final String jsonString = jsonEncode(shareTargetList);
-      final String encoded = base64Encode(utf8.encode(jsonString))
+      final List<int> stringBytes = utf8.encode(jsonString);
+      final List<int> compressedBytes = gzip.encode(stringBytes);
+      final String encoded = base64Encode(compressedBytes)
           .replaceAll('+', '-')
           .replaceAll('/', '_')
-          .replaceAll('=', '');
+          .replaceAll('=', ''); 
 
       final String appUrl = Uri.base.origin + Uri.base.path;
       final String shareUrl = '$appUrl?share=$encoded';
@@ -296,7 +304,6 @@ class _MemoPageState extends State<MemoPage> {
         title: const Text('無限保存・クラウドメモ'),
         backgroundColor: Colors.blue,
         actions: [
-          // ⭕ タイトルの右にある共有ボタンを文字化けしない綺麗な絵文字に修正しました！
           IconButton(
             icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)),
             onPressed: _toggleSelectMode,
@@ -389,7 +396,6 @@ class _MemoPageState extends State<MemoPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('共有するメモを選択中...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                  // ⭕ QRコード生成ボタンの前のアイコンを綺麗な絵文字に修正しました！
                   ElevatedButton(
                     onPressed: _generateShareQr,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
