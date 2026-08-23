@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io'; // 💡 超圧縮(gzip)を使うために新しく追加しました！
 import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
@@ -164,20 +163,14 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された共有データを解析して取り込む関数（Gzipエラーを完璧に解消！）
+  // 🔗 相手から渡された共有データを解析して取り込む関数（道具の名前を完全に修正！）
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
     if (uri.queryParameters.containsKey('share')) {
       try {
         final String encodedData = uri.queryParameters['share']!;
-        String normalized = encodedData.replaceAll('-', '+').replaceAll('_', '/');
-        while (normalized.length % 4 != 0) {
-          normalized += '=';
-        }
-        
-        final List<int> compressedBytes = base64Decode(normalized);
-        final List<int> decompressedBytes = gzip.decode(compressedBytes);
-        final String jsonString = utf8.decode(decompressedBytes);
+        // ⭕ base64UrlDecode から 正しい名称の base64Url.decode へ修正しました！
+        final String jsonString = utf8.decode(base64Url.decode(encodedData));
         final List<dynamic> incomingList = jsonDecode(jsonString);
 
         if (incomingList.isNotEmpty) {
@@ -190,7 +183,7 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-  // 📥 共有メモの受信確認ポップアップ（安全基準の警告を完璧に解消！）
+  // 📥 共有メモの受信確認ポップアップ（URL取得の型エラーを完全に解消！）
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     showDialog(
       context: context,
@@ -207,10 +200,10 @@ class _MemoPageState extends State<MemoPage> {
               _saveData();
               Navigator.pop(context);
               
-              // ⭕ 連続受信対策：絶対に空にならない項目から ?? '' を削除し、警告を完全消滅させました！
+              // ⭕ 連続受信対策：String? の型エラーを防ぐため、toString() を用いて確実に String 型として取得します！
               if (kIsWeb) {
-                final String origin = html.window.location.origin;
-                final String path = html.window.location.pathname ?? '';
+                final String origin = html.window.location.origin.toString();
+                final String path = html.window.location.pathname.toString();
                 html.window.history.replaceState(null, '', origin + path);
               }
             },
@@ -220,8 +213,7 @@ class _MemoPageState extends State<MemoPage> {
       ),
     );
   }
-
-  // 🗂️ 選択されたメモをギュッと超圧縮してQRコードのURLを作る関数
+  // 🗂️ 選択されたメモをまとめてQRコードのURLを作る関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -240,11 +232,7 @@ class _MemoPageState extends State<MemoPage> {
     try {
       final String jsonString = jsonEncode(shareTargetList);
       final List<int> stringBytes = utf8.encode(jsonString);
-      final List<int> compressedBytes = gzip.encode(stringBytes);
-      final String encoded = base64Encode(compressedBytes)
-          .replaceAll('+', '-')
-          .replaceAll('/', '_')
-          .replaceAll('=', ''); 
+      final String encoded = base64UrlEncode(stringBytes); 
 
       final String appUrl = Uri.base.origin + Uri.base.path;
       final String shareUrl = '$appUrl?share=$encoded';
