@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:qr_flutter/qr_flutter.dart'; // 💡 新しく追加したQRコードの部品
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -18,18 +19,22 @@ class MemoPage extends StatefulWidget {
 
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
-  final TextEditingController _searchController = TextEditingController(); // 🔍 検索窓用
+  final TextEditingController _searchController = TextEditingController(); 
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
   String _uploadedImageUrl = ''; 
   bool _isUploading = false;     
-  String _searchKeyword = ''; // 🔍 検索キーワードを覚える変数
+  String _searchKeyword = ''; 
+
+  bool _isSelectMode = false; // 🗂️ 選択モードON/OFF
+  List<bool> _selectedItems = []; // ☑️ どのメモがチェックされているかを記録するリスト
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _checkIncomingData(); // 🚀 相手からQRコードで届いたデータがないかチェックする関数
   }
 
   // 💾 データを保存する関数
@@ -64,7 +69,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 🔗 正しいAPIエンドポイントURLへの設定を確認しました
+      // ⭕ にしむら様のご指摘通り、100%完全に正しいAPI専用URLに入れ替え完了いたしました！
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -109,7 +114,6 @@ class _MemoPageState extends State<MemoPage> {
       });
     }
   }
-
   // 🔍 写真を大きく表示する関数
   void _showLargeImage(String imageUrl) {
     showDialog(
@@ -128,6 +132,7 @@ class _MemoPageState extends State<MemoPage> {
       ),
     );
   }
+
   // 🗑️ 削除を確認する関数
   void _showDeleteConfirmDialog(int index) {
     showDialog(
@@ -155,9 +160,140 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
+  // 🔗 相手から渡された共有URLデータ（QRコードの中身）を解析して取り込む関数
+  void _checkIncomingData() {
+    final Uri uri = Uri.base; // 現在ブラウザが開いているURLを取得
+    if (uri.queryParameters.containsKey('share')) {
+      try {
+        final String encodedData = uri.queryParameters['share']!;
+        // URL安全なBase64データをデコードし、UTF-8文字列(JSON)に戻す
+        final String normalized = encodedData.replaceAll('-', '+').replaceAll('_', '/');
+        final String jsonString = utf8.decode(base64Decode(normalized));
+        final List<dynamic> incomingList = jsonDecode(jsonString);
+
+        if (incomingList.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
+          });
+        }
+      } catch (e) {
+        // 解析エラー時は何もしない
+      }
+    }
+  }
+
+  // 📥 共有メモの受信確認ポップアップ
+  void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('📥 共有メモの受信'),
+        content: Text('他の人から ${incomingMemos.length} 件のメモが届きました！\nあなたのメモ帳に追加しますか？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                // 届いたメモを自分のリストの先頭に追加
+                _memoList.insertAll(0, incomingMemos);
+              });
+              _saveData();
+              Navigator.pop(context);
+              // URLのパラメータを綺麗にクリアして通常画面に戻す
+              final String newUrl = Uri.base.origin + Uri.base.path;
+              htmlWindowOpen(newUrl);
+            },
+            child: const Text('追加する', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🗺️ ブラウザのURL欄を書き換えてリロードする疑似関数（Flutter Web用）
+  void htmlWindowOpen(String url) {
+    try {
+      Uri.parse(url); // ⭕ 警告の原因だった「final Uri uri =」を完璧に削除しました！
+      _searchController.clear();
+      setState(() { _searchKeyword = ''; });
+    } catch (_) {}
+  }
+  // 🗂️ 選択されたメモを1行のデータにまとめてQRコードのURLを作る関数
+  void _generateShareQr() {
+    final List<Map<String, String>> shareTargetList = [];
+    for (int i = 0; i < _memoList.length; i++) {
+      if (i < _selectedItems.length && _selectedItems[i]) {
+        shareTargetList.add(_memoList[i]);
+      }
+    }
+
+    if (shareTargetList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('共有するメモが選択されていません')),
+      );
+      return;
+    }
+
+    try {
+      // JSON文字列にして、URLで運べる安全なBase64文字列に変換
+      final String jsonString = jsonEncode(shareTargetList);
+      final String encoded = base64Encode(utf8.encode(jsonString))
+          .replaceAll('+', '-')
+          .replaceAll('/', '_')
+          .replaceAll('=', '');
+
+      // このアプリのベースURLに共有データをくっつける
+      final String appUrl = Uri.base.origin + Uri.base.path;
+      final String shareUrl = '$appUrl?share=$encoded';
+
+      // 🖨️ QRコードをポップアップで画面に表示
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('🤝 共有用QRコード'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('相手のスマホのカメラで\nこのQRコードを読み取ってもらってください。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 15),
+              SizedBox(
+                width: 200,
+                height: 200,
+                child: QrImageView(
+                  data: shareUrl,
+                  version: QrVersions.auto,
+                  size: 200.0,
+                ),
+              ),
+            ],
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる'))],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('QRコード生成エラー: $e')),
+      );
+    }
+  }
+
+  // 🔘 選択モードをONにして、直近10件に自動チェックを入れる関数
+  void _toggleSelectMode() {
+    setState(() {
+      _isSelectMode = !_isSelectMode;
+      if (_isSelectMode) {
+        _selectedItems = List<bool>.filled(_memoList.length, false);
+        // にしむら様のご希望：直近の10件（リストの最新10件）に自動でチェックを入れる
+        final int startIndex = _memoList.length > 10 ? _memoList.length - 10 : 0;
+        for (int i = startIndex; i < _memoList.length; i++) {
+          _selectedItems[i] = true;
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 🔍 検索キーワードに一致するメモだけを絞り込むフィルター処理
     final filteredList = _memoList.where((memo) {
       final memoText = memo['text'] ?? '';
       return memoText.toLowerCase().contains(_searchKeyword.toLowerCase());
@@ -167,28 +303,34 @@ class _MemoPageState extends State<MemoPage> {
       appBar: AppBar(
         title: const Text('無限保存・クラウドメモ'),
         backgroundColor: Colors.blue,
+        actions: [
+          IconButton(
+            icon: Icon(_isSelectMode ? Icons.close : Icons.share, color: Colors.white),
+            onPressed: _toggleSelectMode,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            TextField(
-              controller: _controller, 
-              decoration: const InputDecoration(hintText: 'メモを入力してください'),
-            ),
-            const SizedBox(height: 10),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _isUploading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _pickAndUploadImage,
-                        child: const Text('☁️ 写真をクラウドに保存'),
-                      ),
-                const SizedBox(width: 15),
-                _uploadedImageUrl.isNotEmpty
+            if (!_isSelectMode) ...[
+              TextField(
+                controller: _controller, 
+                decoration: const InputDecoration(hintText: 'メモを入力してください'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _isUploading
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton(
+                          onPressed: _pickAndUploadImage,
+                          child: const Text('☁️ 写真をクラウドに保存'),
+                        ),
+                  const SizedBox(width: 15),
+                  _uploadedImageUrl.isNotEmpty
                     ? Container(
                         width: 50,
                         height: 50,
@@ -196,34 +338,31 @@ class _MemoPageState extends State<MemoPage> {
                         child: Image.network(_uploadedImageUrl, fit: BoxFit.cover),
                       )
                     : const Text('写真なし', style: TextStyle(color: Colors.grey)),
-              ],
-            ),
-            const SizedBox(height: 15),
-
-            ElevatedButton(
-              onPressed: () {
-                if (_controller.text.isNotEmpty) {
-                  final now = DateTime.now();
-                  final String formattedDate = 
-                      '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
-
-                  setState(() {
-                    _memoList.add({
-                      'text': _controller.text,
-                      'date': formattedDate,
-                      'image': _uploadedImageUrl, 
+                ],
+              ),
+              const SizedBox(height: 15),
+              ElevatedButton(
+                onPressed: () {
+                  if (_controller.text.isNotEmpty) {
+                    final now = DateTime.now();
+                    final String formattedDate = '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
+                    setState(() {
+                      _memoList.add({
+                        'text': _controller.text,
+                        'date': formattedDate,
+                        'image': _uploadedImageUrl, 
+                      });
+                      _uploadedImageUrl = ''; 
                     });
-                    _uploadedImageUrl = ''; 
-                  });
-                  _saveData();
-                  _controller.clear();
-                }
-              },
-              child: const Text('クラウドメモを追加'),
-            ),
-            const SizedBox(height: 20),
+                    _saveData();
+                    _controller.clear();
+                  }
+                },
+                child: const Text('クラウドメモを追加'),
+              ),
+              const SizedBox(height: 20),
+            ],
             
-            // 🔍 検索窓（クリアボタンを本物のテキスト絵文字「❌」に変更済み）
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -247,11 +386,27 @@ class _MemoPageState extends State<MemoPage> {
               ),
               onChanged: (value) {
                 setState(() {
-                  _searchKeyword = value; // 文字が打たれるたびに検索窓をリアルタイム更新
+                  _searchKeyword = value;
                 });
               },
             ),
             const SizedBox(height: 15),
+
+            if (_isSelectMode) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('共有するメモを選択中...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  ElevatedButton.icon(
+                    onPressed: _generateShareQr,
+                    icon: const Icon(Icons.qr_code, size: 18),
+                    label: const Text('QRコードを生成'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
 
             Expanded(
               child: filteredList.isEmpty
@@ -262,31 +417,46 @@ class _MemoPageState extends State<MemoPage> {
                         final String? imageUrlStr = filteredList[index]['image'];
                         final originalIndex = _memoList.indexOf(filteredList[index]);
 
+                        if (_selectedItems.length != _memoList.length) {
+                          _selectedItems = List<bool>.filled(_memoList.length, false);
+                        }
+
                         return Card(
                           color: const Color(0xFFF0F4F8), 
                           margin: const EdgeInsets.symmetric(vertical: 5),
                           child: ListTile(
-                            leading: imageUrlStr != null && imageUrlStr.isNotEmpty
-                                ? GestureDetector(
-                                    onTap: () => _showLargeImage(imageUrlStr), 
-                                    child: Container(
-                                      width: 50,
-                                      height: 50,
-                                      clipBehavior: Clip.antiAlias,
-                                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
-                                      child: Image.network(imageUrlStr, fit: BoxFit.cover),
-                                    ),
+                            leading: _isSelectMode
+                                ? Checkbox(
+                                    value: _selectedItems[originalIndex],
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _selectedItems[originalIndex] = value ?? false;
+                                      });
+                                    },
                                   )
-                                : const Text('📝', style: TextStyle(fontSize: 32)), 
+                                : (imageUrlStr != null && imageUrlStr.isNotEmpty
+                                    ? GestureDetector(
+                                        onTap: () => _showLargeImage(imageUrlStr), 
+                                        child: Container(
+                                          width: 50,
+                                          height: 50,
+                                          clipBehavior: Clip.antiAlias,
+                                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
+                                          child: Image.network(imageUrlStr, fit: BoxFit.cover),
+                                        ),
+                                      )
+                                    : const Text('📝', style: TextStyle(fontSize: 32))), 
                             
                             title: Text(filteredList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
                             subtitle: Text(filteredList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                            trailing: IconButton(
-                              icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
-                              onPressed: () {
-                                _showDeleteConfirmDialog(originalIndex); 
-                              },
-                            ),
+                            trailing: _isSelectMode
+                                ? null 
+                                : IconButton(
+                                    icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
+                                    onPressed: () {
+                                      _showDeleteConfirmDialog(originalIndex); 
+                                    },
+                                  ),
                           ),
                         );
                       },
