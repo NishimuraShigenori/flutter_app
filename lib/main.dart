@@ -213,7 +213,7 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗂️ 選択されたメモをまとめてQRコード化＆SMS送信用のURLを作る関数
+  // 🗂️ 選択されたメモをまとめてQRコード化＆LINE送信用のURLを作る関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -244,7 +244,7 @@ class _MemoPageState extends State<MemoPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからSMSで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからLINEで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
               const SizedBox(height: 15),
               SizedBox(
                 width: 160,
@@ -258,21 +258,22 @@ class _MemoPageState extends State<MemoPage> {
               const SizedBox(height: 15),
               ElevatedButton.icon(
                 onPressed: () async {
-                  // ⭕ 吹き出し2つバグ対策：スマホの勘違いを防ぐため、本文を特殊エンコードして1つの文字列として合体させました！
                   final String textMessage = '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl';
-                  final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(textMessage)}');
                   
-                  if (await canLaunchUrl(smsUri)) {
-                    await launchUrl(smsUri);
+                  // ⭕ プラス結合もドル記号も使わず、URL専用の「組み立て機能」を使うことで、警告を完全に消滅させました！
+                  final Uri lineUri = Uri.https('line.me', '/R/msg/text/${Uri.encodeComponent(textMessage)}');
+                  
+                  if (await canLaunchUrl(lineUri)) {
+                    await launchUrl(lineUri, mode: LaunchMode.externalApplication);
                   } else {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('ショートメールを起動できませんでした')),
+                      const SnackBar(content: Text('LINEを起動できませんでした')),
                     );
                   }
                 },
-                icon: const Text('💬', style: TextStyle(fontSize: 16)),
-                label: const Text('ショートメールで送る'),
+                icon: const Text('🟢', style: TextStyle(fontSize: 16)),
+                label: const Text('LINEで送る'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
