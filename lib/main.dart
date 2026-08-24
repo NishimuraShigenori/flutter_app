@@ -256,16 +256,12 @@ class _MemoPageState extends State<MemoPage> {
                 ),
               ),
               const SizedBox(height: 15),
-              // ⭕ 新機能：タップするだけで端末のショートメールを自動で立ち上げる緑のボタン！
               ElevatedButton.icon(
                 onPressed: () async {
-                  // ショートメール起動用の特殊な「sms:」形式のURLを作成
-                  final Uri smsUri = Uri(
-                    scheme: 'sms',
-                    queryParameters: <String, String>{
-                      'body': '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl',
-                    },
-                  );
+                  // ⭕ 吹き出し2つバグ対策：スマホの勘違いを防ぐため、本文を特殊エンコードして1つの文字列として合体させました！
+                  final String textMessage = '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl';
+                  final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(textMessage)}');
+                  
                   if (await canLaunchUrl(smsUri)) {
                     await launchUrl(smsUri);
                   } else {
