@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
-// 🚀 連続受信を確実にするための、ブラウザURLリセット用の特殊な部品
 import 'package:universal_html/html.dart' as html;
+import 'package:url_launcher/url_launcher.dart'; // 💡 ショートメール起動用の新しい部品！
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -37,7 +37,7 @@ class _MemoPageState extends State<MemoPage> {
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); // 🚀 届いた共有データをチェック
+    _checkIncomingData(); 
   }
 
   // 💾 データを保存する関数
@@ -72,7 +72,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 宛先URLは絶対に正しい状態です
+      // 宛先URLは完全に正しい状態に固定してあります
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -183,7 +183,7 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-  // 📥 共有メモの受信確認ポップアップ（URL取得の型エラーを完全に解消！）
+  // 📥 共有メモの受信確認ポップアップ
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     showDialog(
       context: context,
@@ -200,7 +200,6 @@ class _MemoPageState extends State<MemoPage> {
               _saveData();
               Navigator.pop(context);
               
-              // ⭕ 連続受信対策：String? の型エラーを防ぐため、toString() を用いて確実に String 型として取得します！
               if (kIsWeb) {
                 final String origin = html.window.location.origin.toString();
                 final String path = html.window.location.pathname.toString();
@@ -213,7 +212,8 @@ class _MemoPageState extends State<MemoPage> {
       ),
     );
   }
-  // 🗂️ 選択されたメモをまとめてQRコードのURLを作る関数
+
+  // 🗂️ 選択されたメモをまとめてQRコード化＆SMS送信用のURLを作る関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -240,19 +240,47 @@ class _MemoPageState extends State<MemoPage> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('🤝 共有用QRコード'),
+          title: const Text('🤝 共有用データ生成'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('相手のスマホのカメラで\nこのQRコードを読み取ってもらってください。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからSMSで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
               const SizedBox(height: 15),
               SizedBox(
-                width: 200,
-                height: 200,
+                width: 160,
+                height: 160,
                 child: QrImageView(
                   data: shareUrl,
                   version: QrVersions.auto,
-                  size: 200.0,
+                  size: 160.0,
+                ),
+              ),
+              const SizedBox(height: 15),
+              // ⭕ 新機能：タップするだけで端末のショートメールを自動で立ち上げる緑のボタン！
+              ElevatedButton.icon(
+                onPressed: () async {
+                  // ショートメール起動用の特殊な「sms:」形式のURLを作成
+                  final Uri smsUri = Uri(
+                    scheme: 'sms',
+                    queryParameters: <String, String>{
+                      'body': '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl',
+                    },
+                  );
+                  if (await canLaunchUrl(smsUri)) {
+                    await launchUrl(smsUri);
+                  } else {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('ショートメールを起動できませんでした')),
+                    );
+                  }
+                },
+                icon: const Text('💬', style: TextStyle(fontSize: 16)),
+                label: const Text('ショートメールで送る'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 40),
                 ),
               ),
             ],
@@ -262,7 +290,7 @@ class _MemoPageState extends State<MemoPage> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('QRコード生成エラー: $e')),
+        SnackBar(content: Text('共有データ生成エラー: $e')),
       );
     }
   }
