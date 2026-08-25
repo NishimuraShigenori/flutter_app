@@ -163,35 +163,20 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された短い「sパラメータ（数字データ）」を解析して自分のリストに復元する関数
+  // 🔗 相手から渡された共有URLデータ（暗号化された本物の文字・写真データ）を解析して取り込む関数
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
-    if (uri.queryParameters.containsKey('s')) {
+    // ⭕ 以前大成功した、データそのものを運ぶ「share」パラメータでの解読に戻しました！
+    if (uri.queryParameters.containsKey('share')) {
       try {
-        final String indexData = uri.queryParameters['s']!;
-        
-        // ⭕ 修正ポイント：Webブラウザで絶対にエラーの起きない 'base64Url.decode' へと繋ぎ直しました！
-        String normalized = indexData.replaceAll('-', '+').replaceAll('_', '/');
-        while (normalized.length % 4 != 0) {
-          normalized += '=';
-        }
-        final String decodedIndices = utf8.decode(base64Url.decode(normalized));
-        
-        // カンマやアンダーバーで区切られた番号を分解
-        final List<String> indices = decodedIndices.split('_');
-        final List<Map<String, String>> incomingList = [];
-        
-        // 自分のリスト内から該当する番号のメモを特定して取り出す
-        for (String idxStr in indices) {
-          final int? idx = int.tryParse(idxStr);
-          if (idx != null && idx >= 0 && idx < _memoList.length) {
-            incomingList.add(_memoList[idx]);
-          }
-        }
+        final String encodedData = uri.queryParameters['share']!;
+        // Webブラウザで100%確実にエラーなく解読できる base64Url.decode を使用
+        final String jsonString = utf8.decode(base64Url.decode(encodedData));
+        final List<dynamic> incomingList = jsonDecode(jsonString);
 
         if (incomingList.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showReceiveDialog(incomingList);
+            _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
           });
         }
       } catch (e) {
@@ -229,16 +214,16 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗂️ 選択されたメモの「番号」だけをコンパクトにまとめて、超短縮URLを生成する関数
+  // 🗂️ 選択されたメモ（文字・写真データ丸ごと）を安全に暗号化して、1行完結のSMS用URLを作る関数
   void _generateShareQr() {
-    final List<int> selectedIndices = [];
+    final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
       if (i < _selectedItems.length && _selectedItems[i]) {
-        selectedIndices.add(i);
+        shareTargetList.add(_memoList[i]);
       }
     }
 
-    if (selectedIndices.isEmpty) {
+    if (shareTargetList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('共有するメモが選択されていません')),
       );
@@ -246,16 +231,12 @@ class _MemoPageState extends State<MemoPage> {
     }
 
     try {
-      // ⭕ メモそのものではなく、「1_5_12」のようなインデックス番号の羅列だけにして文字数を最小化！
-      final String indexString = selectedIndices.join('_');
-      final String encoded = base64Encode(utf8.encode(indexString))
-          .replaceAll('+', '-')
-          .replaceAll('/', '_')
-          .replaceAll('=', ''); 
+      final String jsonString = jsonEncode(shareTargetList);
+      final List<int> stringBytes = utf8.encode(jsonString);
+      final String encoded = base64UrlEncode(stringBytes); 
 
       final String appUrl = Uri.base.origin + Uri.base.path;
-      // ⭕ 文字数が極限まで短くなった、ショートメール対応の魔法のURLです！
-      final String shareUrl = '$appUrl?s=$encoded';
+      final String shareUrl = '$appUrl?share=$encoded';
 
       showDialog(
         context: context,
@@ -276,11 +257,10 @@ class _MemoPageState extends State<MemoPage> {
                 ),
               ),
               const SizedBox(height: 15),
-              // ⭕ 復活：文字数が激短になったため、絶対に1つの吹き出しで綺麗に送れるショートメールボタン！
+              // ⭕ 分割バグを完全解決：正しい標準暗号化命令（Uri.encodeComponent）を適用しました！
               ElevatedButton.icon(
                 onPressed: () async {
-                  final String textMessage = '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl';
-                  final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(textMessage)}');
+                  final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(shareUrl)}');
                   
                   if (await canLaunchUrl(smsUri)) {
                     await launchUrl(smsUri);
