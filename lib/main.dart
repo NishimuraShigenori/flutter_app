@@ -1,13 +1,13 @@
 import 'dart:convert';
-import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 📋 文字コピー(Clipboard)用
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
-import 'package:url_launcher/url_launcher.dart'; // 💡 ショートメール起動用の新しい部品！
+import 'package:url_launcher/url_launcher.dart'; 
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -37,7 +37,7 @@ class _MemoPageState extends State<MemoPage> {
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); 
+    _checkIncomingData(); // 🚀 届いた共有データをチェック
   }
 
   // 💾 データを保存する関数
@@ -72,7 +72,7 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 宛先URLは完全に正しい状態に固定してあります
+      // 宛先URLは絶対に正しい状態です
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -163,14 +163,12 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された共有URLデータ（暗号化された本物の文字・写真データ）を解析して取り込む関数
+  // 🔗 相手から渡された共有URLデータを安全に解読して取り込む関数
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
-    // ⭕ 以前大成功した、データそのものを運ぶ「share」パラメータでの解読に戻しました！
     if (uri.queryParameters.containsKey('share')) {
       try {
         final String encodedData = uri.queryParameters['share']!;
-        // Webブラウザで100%確実にエラーなく解読できる base64Url.decode を使用
         final String jsonString = utf8.decode(base64Url.decode(encodedData));
         final List<dynamic> incomingList = jsonDecode(jsonString);
 
@@ -214,7 +212,7 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗂️ 選択されたメモ（文字・写真データ丸ごと）を安全に暗号化して、1行完結のSMS用URLを作る関数
+  // 🗂️ 選択されたメモをまとめてQR・SMS・コピー用URLにする関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -245,39 +243,33 @@ class _MemoPageState extends State<MemoPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからSMSで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからSMSやコピーで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
               const SizedBox(height: 15),
               SizedBox(
-                width: 160,
-                height: 160,
-                child: QrImageView(
-                  data: shareUrl,
-                  version: QrVersions.auto,
-                  size: 160.0,
-                ),
+                width: 150,
+                height: 150,
+                child: QrImageView(data: shareUrl, version: QrVersions.auto, size: 150.0),
               ),
               const SizedBox(height: 15),
-              // ⭕ 分割バグを完全解決：正しい標準暗号化命令（Uri.encodeComponent）を適用しました！
               ElevatedButton.icon(
                 onPressed: () async {
                   final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(shareUrl)}');
-                  
-                  if (await canLaunchUrl(smsUri)) {
-                    await launchUrl(smsUri);
-                  } else {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('ショートメールを起動できませんでした')),
-                    );
-                  }
+                  if (await canLaunchUrl(smsUri)) { await launchUrl(smsUri); }
                 },
                 icon: const Text('💬', style: TextStyle(fontSize: 16)),
                 label: const Text('ショートメールで送る'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 40),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 35)),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: shareUrl));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📋 共有リンクをコピーしました！')));
+                },
+                icon: const Text('📋', style: TextStyle(fontSize: 16)),
+                label: const Text('リンクをコピー'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 35)),
               ),
             ],
           ),
@@ -285,9 +277,7 @@ class _MemoPageState extends State<MemoPage> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('共有データ生成エラー: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('共有データ生成エラー: $e')));
     }
   }
   // 🔘 選択モードをONにして、直近10件に自動チェックを入れる関数
