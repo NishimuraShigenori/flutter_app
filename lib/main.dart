@@ -279,6 +279,116 @@ class _MemoPageState extends State<MemoPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('共有データ生成エラー: $e')));
     }
   }
+  // 📝 案②：にしむら様設計の上部吸着型・長文テキストエリアポップアップを開く関数
+  void _showInputPopup() {
+    // ポップアップを開く前に、写真の一時保存データを綺麗にリセット
+    _uploadedImageUrl = ''; 
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setPopupState) {
+            return Dialog(
+              // ⭕ キーボード対策：ポップアップの位置を「画面の最上部(top)」にピタッと吸着させます！
+              alignment: Alignment.topCenter,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 50),
+              child: Padding(
+                padding: const EdgeInsets.all(15.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('📝 メモの新規作成', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    
+                    // ⭕ 長文対応：最初から5行分の広い空間を確保し、はみ出しても自動で縦スクロールします！
+                    TextField(
+                      controller: _controller,
+                      maxLines: 5,
+                      minLines: 5,
+                      keyboardType: TextInputType.multiline,
+                      decoration: const InputDecoration(
+                        hintText: 'ここにメモを入力してください...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(10),
+                      ),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // 📷 ポップアップ内でクラウド写真を安全に管理するエリア
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _isUploading
+                            ? const CircularProgressIndicator()
+                            : ElevatedButton(
+                                onPressed: () async {
+                                  // 親画面のアップロード関数を実行
+                                  await _pickAndUploadImage();
+                                  // アップロードが終わったらポップアップ内の画面表示を最新に更新
+                                  setPopupState(() {});
+                                },
+                                child: const Text('☁️ 写真をクラウドに保存'),
+                              ),
+                        const SizedBox(width: 15),
+                        _uploadedImageUrl.isNotEmpty
+                            ? Container(
+                                width: 45,
+                                height: 40,
+                                decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
+                                child: Image.network(_uploadedImageUrl, fit: BoxFit.cover),
+                              )
+                            : const Text('写真なし', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+
+                    // 🚪 下部のボタンエリア
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            _controller.clear();
+                            Navigator.pop(context);
+                          },
+                          child: const Text('キャンセル', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                        ),
+                        const SizedBox(width: 15),
+                        ElevatedButton(
+                          onPressed: () {
+                            if (_controller.text.isNotEmpty) {
+                              final now = DateTime.now();
+                              final String formattedDate = '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
+                              setState(() {
+                                _memoList.add({
+                                  'text': _controller.text,
+                                  'date': formattedDate,
+                                  'image': _uploadedImageUrl, 
+                                });
+                                _uploadedImageUrl = ''; 
+                              });
+                              _saveData();
+                              _controller.clear();
+                              Navigator.pop(context); // 入力完了後にポップアップを閉じる
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                          child: const Text('追加する', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // 🔘 選択モードをONにして、直近10件に自動チェックを入れる関数
   void _toggleSelectMode() {
     setState(() {
@@ -286,13 +396,10 @@ class _MemoPageState extends State<MemoPage> {
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
         final int startIndex = _memoList.length > 10 ? _memoList.length - 10 : 0;
-        for (int i = startIndex; i < _memoList.length; i++) {
-          _selectedItems[i] = true;
-        }
+        for (int i = startIndex; i < _memoList.length; i++) { _selectedItems[i] = true; }
       }
     });
   }
-
   @override
   Widget build(BuildContext context) {
     final filteredList = _memoList.where((memo) {
@@ -315,54 +422,23 @@ class _MemoPageState extends State<MemoPage> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
+            // ⭕ 新しいレイアウト：トップページをスッキリさせ、お洒落な新規作成ボタンを配置！
             if (!_isSelectMode) ...[
-              TextField(
-                controller: _controller, 
-                decoration: const InputDecoration(hintText: 'メモを入力してください'),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _isUploading
-                      ? const CircularProgressIndicator()
-                      : ElevatedButton(
-                          onPressed: _pickAndUploadImage,
-                          child: const Text('☁️ 写真をクラウドに保存'),
-                        ),
-                  const SizedBox(width: 15),
-                  _uploadedImageUrl.isNotEmpty
-                    ? Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(border: Border.all(color: Colors.grey)),
-                        child: Image.network(_uploadedImageUrl, fit: BoxFit.cover),
-                      )
-                    : const Text('写真なし', style: TextStyle(color: Colors.grey)),
-                ],
+              ElevatedButton.icon(
+                onPressed: _showInputPopup, // 🚀 にしむら様設計の巨大ポップアップを起動
+                icon: const Text('📝', style: TextStyle(fontSize: 18)),
+                label: const Text('新しいメモを書く', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 45),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
               ),
               const SizedBox(height: 15),
-              ElevatedButton(
-                onPressed: () {
-                  if (_controller.text.isNotEmpty) {
-                    final now = DateTime.now();
-                    final String formattedDate = '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
-                    setState(() {
-                      _memoList.add({
-                        'text': _controller.text,
-                        'date': formattedDate,
-                        'image': _uploadedImageUrl, 
-                      });
-                      _uploadedImageUrl = ''; 
-                    });
-                    _saveData();
-                    _controller.clear();
-                  }
-                },
-                child: const Text('クラウドメモを追加'),
-              ),
-              const SizedBox(height: 20),
             ],
+            
+            // 🔍 検索窓
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -458,7 +534,6 @@ class _MemoPageState extends State<MemoPage> {
 
                                 Expanded(
                                   child: Column(
-                                    // ⭕ 間違えていた MainAxisAlignment を 100%正しい CrossAxisAlignment.start へ完全修正いたしました！
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
