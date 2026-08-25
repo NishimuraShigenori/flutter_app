@@ -163,19 +163,32 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された共有データを解析して取り込む関数（道具の名前を完全に修正！）
+  // 🔗 相手から渡された短い「sパラメータ（数字データ）」を解析して自分のリストに復元する関数
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
-    if (uri.queryParameters.containsKey('share')) {
+    // ⭕ 新しい超短縮「s」パラメータをチェックします
+    if (uri.queryParameters.containsKey('s')) {
       try {
-        final String encodedData = uri.queryParameters['share']!;
-        // ⭕ base64UrlDecode から 正しい名称の base64Url.decode へ修正しました！
-        final String jsonString = utf8.decode(base64Url.decode(encodedData));
-        final List<dynamic> incomingList = jsonDecode(jsonString);
+        final String indexData = uri.queryParameters['s']!;
+        // URL安全なBase64をデコードし、「1_5_12」のような数字の文字列に戻す
+        final String normalized = indexData.replaceAll('-', '+').replaceAll('_', '/');
+        final String decodedIndices = utf8.decode(base64Decode(normalized));
+        
+        // カンマやアンダーバーで区切られた番号を分解
+        final List<String> indices = decodedIndices.split('_');
+        final List<Map<String, String>> incomingList = [];
+        
+        // 自分のクラウド上（または現在のリスト内）から該当する番号のメモを特定して取り出す
+        for (String idxStr in indices) {
+          final int? idx = int.tryParse(idxStr);
+          if (idx != null && idx >= 0 && idx < _memoList.length) {
+            incomingList.add(_memoList[idx]);
+          }
+        }
 
         if (incomingList.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
+            _showReceiveDialog(incomingList);
           });
         }
       } catch (e) {
@@ -213,16 +226,16 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗂️ 選択されたメモをまとめてQRコード化＆LINE送信用のURLを作る関数
+  // 🗂️ 選択されたメモの「番号」だけをコンパクトにまとめて、超短縮URLを生成する関数
   void _generateShareQr() {
-    final List<Map<String, String>> shareTargetList = [];
+    final List<int> selectedIndices = [];
     for (int i = 0; i < _memoList.length; i++) {
       if (i < _selectedItems.length && _selectedItems[i]) {
-        shareTargetList.add(_memoList[i]);
+        selectedIndices.add(i);
       }
     }
 
-    if (shareTargetList.isEmpty) {
+    if (selectedIndices.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('共有するメモが選択されていません')),
       );
@@ -230,12 +243,16 @@ class _MemoPageState extends State<MemoPage> {
     }
 
     try {
-      final String jsonString = jsonEncode(shareTargetList);
-      final List<int> stringBytes = utf8.encode(jsonString);
-      final String encoded = base64UrlEncode(stringBytes); 
+      // ⭕ メモそのものではなく、「1_5_12」のようなインデックス番号の羅列だけにして文字数を最小化！
+      final String indexString = selectedIndices.join('_');
+      final String encoded = base64Encode(utf8.encode(indexString))
+          .replaceAll('+', '-')
+          .replaceAll('/', '_')
+          .replaceAll('=', ''); 
 
       final String appUrl = Uri.base.origin + Uri.base.path;
-      final String shareUrl = '$appUrl?share=$encoded';
+      // ⭕ 文字数が極限まで短くなった、ショートメール対応の魔法のURLです！
+      final String shareUrl = '$appUrl?s=$encoded';
 
       showDialog(
         context: context,
@@ -244,7 +261,7 @@ class _MemoPageState extends State<MemoPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからLINEで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const Text('近くの人にはQRコードを、\n遠くの人には下のボタンからSMSで送れます。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
               const SizedBox(height: 15),
               SizedBox(
                 width: 160,
@@ -256,24 +273,23 @@ class _MemoPageState extends State<MemoPage> {
                 ),
               ),
               const SizedBox(height: 15),
+              // ⭕ 復活：文字数が激短になったため、絶対に1つの吹き出しで綺麗に送れるショートメールボタン！
               ElevatedButton.icon(
                 onPressed: () async {
                   final String textMessage = '共有されたメモを開くには、下のリンクをタップしてください！\n\n$shareUrl';
+                  final Uri smsUri = Uri.parse('sms:?body=${Uri.encodeComponent(textMessage)}');
                   
-                  // ⭕ プラス結合もドル記号も使わず、URL専用の「組み立て機能」を使うことで、警告を完全に消滅させました！
-                  final Uri lineUri = Uri.https('line.me', '/R/msg/text/${Uri.encodeComponent(textMessage)}');
-                  
-                  if (await canLaunchUrl(lineUri)) {
-                    await launchUrl(lineUri, mode: LaunchMode.externalApplication);
+                  if (await canLaunchUrl(smsUri)) {
+                    await launchUrl(smsUri);
                   } else {
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('LINEを起動できませんでした')),
+                      const SnackBar(content: Text('ショートメールを起動できませんでした')),
                     );
                   }
                 },
-                icon: const Text('🟢', style: TextStyle(fontSize: 16)),
-                label: const Text('LINEで送る'),
+                icon: const Text('💬', style: TextStyle(fontSize: 16)),
+                label: const Text('ショートメールで送る'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
