@@ -166,19 +166,22 @@ class _MemoPageState extends State<MemoPage> {
   // 🔗 相手から渡された短い「sパラメータ（数字データ）」を解析して自分のリストに復元する関数
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
-    // ⭕ 新しい超短縮「s」パラメータをチェックします
     if (uri.queryParameters.containsKey('s')) {
       try {
         final String indexData = uri.queryParameters['s']!;
-        // URL安全なBase64をデコードし、「1_5_12」のような数字の文字列に戻す
-        final String normalized = indexData.replaceAll('-', '+').replaceAll('_', '/');
-        final String decodedIndices = utf8.decode(base64Decode(normalized));
+        
+        // ⭕ 修正ポイント：Webブラウザで絶対にエラーの起きない 'base64Url.decode' へと繋ぎ直しました！
+        String normalized = indexData.replaceAll('-', '+').replaceAll('_', '/');
+        while (normalized.length % 4 != 0) {
+          normalized += '=';
+        }
+        final String decodedIndices = utf8.decode(base64Url.decode(normalized));
         
         // カンマやアンダーバーで区切られた番号を分解
         final List<String> indices = decodedIndices.split('_');
         final List<Map<String, String>> incomingList = [];
         
-        // 自分のクラウド上（または現在のリスト内）から該当する番号のメモを特定して取り出す
+        // 自分のリスト内から該当する番号のメモを特定して取り出す
         for (String idxStr in indices) {
           final int? idx = int.tryParse(idxStr);
           if (idx != null && idx >= 0 && idx < _memoList.length) {
