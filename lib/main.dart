@@ -37,7 +37,7 @@ class _MemoPageState extends State<MemoPage> {
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); // 🚀 届いた共有データをチェック
+    _checkIncomingData(); 
   }
 
   // 💾 データを保存する関数
@@ -72,7 +72,6 @@ class _MemoPageState extends State<MemoPage> {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
 
-      // 宛先URLは絶対に正しい状態です
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -430,39 +429,63 @@ class _MemoPageState extends State<MemoPage> {
                         return Card(
                           color: const Color(0xFFF0F4F8), 
                           margin: const EdgeInsets.symmetric(vertical: 5),
-                          child: ListTile(
-                            leading: _isSelectMode
-                                ? Checkbox(
-                                    value: _selectedItems[originalIndex],
-                                    onChanged: (bool? value) {
-                                      setState(() {
-                                        _selectedItems[originalIndex] = value ?? false;
-                                      });
-                                    },
-                                  )
-                                : (imageUrlStr != null && imageUrlStr.isNotEmpty
-                                    ? GestureDetector(
-                                        onTap: () => _showLargeImage(imageUrlStr), 
-                                        child: Container(
-                                          width: 50,
-                                          height: 50,
-                                          clipBehavior: Clip.antiAlias,
-                                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
-                                          child: Image.network(imageUrlStr, fit: BoxFit.cover),
-                                        ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
+                            child: Row(
+                              children: [
+                                _isSelectMode
+                                    ? Checkbox(
+                                        value: _selectedItems[originalIndex],
+                                        onChanged: (bool? value) {
+                                          setState(() {
+                                            _selectedItems[originalIndex] = value ?? false;
+                                          });
+                                        },
                                       )
-                                    : const Text('📝', style: TextStyle(fontSize: 32))), 
-                            
-                            title: Text(filteredList[index]['text'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.black)),
-                            subtitle: Text(filteredList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                            trailing: _isSelectMode
-                                ? null 
-                                : IconButton(
+                                    : (imageUrlStr != null && imageUrlStr.isNotEmpty
+                                        ? GestureDetector(
+                                            onTap: () => _showLargeImage(imageUrlStr), 
+                                            child: Container(
+                                              width: 50,
+                                              height: 50,
+                                              clipBehavior: Clip.antiAlias,
+                                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
+                                              child: Image.network(imageUrlStr, fit: BoxFit.cover),
+                                            ),
+                                          )
+                                        : const Text('📝', style: TextStyle(fontSize: 32))), 
+                                const SizedBox(width: 15),
+
+                                Expanded(
+                                  child: Column(
+                                    // ⭕ 間違えていた MainAxisAlignment を 100%正しい CrossAxisAlignment.start へ完全修正いたしました！
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        filteredList[index]['text'] ?? '', 
+                                        style: const TextStyle(fontSize: 16, color: Colors.black),
+                                        softWrap: true,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        filteredList[index]['date'] ?? '', 
+                                        style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                if (!_isSelectMode)
+                                  IconButton(
                                     icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
                                     onPressed: () {
                                       _showDeleteConfirmDialog(originalIndex); 
                                     },
                                   ),
+                              ],
+                            ),
                           ),
                         );
                       },
