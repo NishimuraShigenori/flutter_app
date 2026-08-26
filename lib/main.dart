@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
-import 'package:url_launcher/url_launcher.dart'; 
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -24,7 +23,7 @@ class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
   final TextEditingController _searchController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController(); // 👥 メンバー名用
-  final TextEditingController _phoneController = TextEditingController(); // 👥 電話番号用
+  final TextEditingController _phoneController = TextEditingController(); // 👥 携帯番号用
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
@@ -51,7 +50,7 @@ class _MemoPageState extends State<MemoPage> {
     final String memoJson = jsonEncode(_memoList);
     final String memberJson = jsonEncode(_memberList);
     await prefs.setString('memo_with_imgbb_v1_key', memoJson);
-    await prefs.setString('member_list_v1_key', memberJson); // 👥 メンバー用キー
+    await prefs.setString('member_list_v1_key', memberJson); 
   }
 
   // 📂 データを読み込む関数
@@ -81,6 +80,8 @@ class _MemoPageState extends State<MemoPage> {
     try {
       final Uint8List imageBytes = await image.readAsBytes();
       final String base64Body = base64Encode(imageBytes);
+      
+      // 宛先URLは絶対に正しい状態です
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
       
       final response = await http.post(
@@ -214,7 +215,7 @@ class _MemoPageState extends State<MemoPage> {
   }
 
   // 🗂️ 選択されたメモを暗号化し、QR・【超短縮URL一斉SMS】を表示する重要関数
-  void _generateShareQr() {
+  void _generateShareQr() async {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
       if (i < _selectedItems.length && _selectedItems[i]) { shareTargetList.add(_memoList[i]); }
@@ -233,6 +234,21 @@ class _MemoPageState extends State<MemoPage> {
       final String shareUrl = '$appUrl?share=$encoded';
 
       _selectedMembers = List<bool>.filled(_memberList.length, false);
+
+      // 🚀 ポップアップが開く「前」に、あらかじめ裏側で超短縮URLを完成させておきます！
+      String initialShortUrl = shareUrl;
+      try {
+        final http.Response response = await http.get(
+          Uri.parse('https://tinyurl.com{Uri.encodeComponent(shareUrl)}')
+        );
+        if (response.statusCode == 200) {
+          initialShortUrl = response.body.trim(); 
+        }
+      } catch (_) {}
+
+      final String formattedMsg = '【無限保存・クラウドメモ】\nあなたへ共有メモが届きました！\n下のリンクをタップするとアプリに追加されます。\n\n$initialShortUrl';
+
+      if (!mounted) return;
 
       showDialog(
         context: context,
@@ -259,7 +275,6 @@ class _MemoPageState extends State<MemoPage> {
                           ? const Text('メンバーはまだ登録されていません', style: TextStyle(color: Colors.grey, fontSize: 12))
                           : Container(
                               constraints: const BoxConstraints(maxHeight: 150),
-                              // ⭕ エラー箇所：Colors.shade300 を 正しい表記の Colors.grey.shade300 へ完全修正いたしました！
                               decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
                               child: ListView.builder(
                                 shrinkWrap: true,
@@ -279,7 +294,7 @@ class _MemoPageState extends State<MemoPage> {
                       const SizedBox(height: 15),
                       
                       ElevatedButton.icon(
-                        onPressed: () async {
+                        onPressed: () {
                           final List<String> phones = [];
                           for (int i = 0; i < _memberList.length; i++) {
                             if (_selectedMembers[i]) { phones.add(_memberList[i]['phone'] ?? ''); }
@@ -289,26 +304,10 @@ class _MemoPageState extends State<MemoPage> {
                             return;
                           }
 
-                          String finalUrl = shareUrl;
-                          try {
-                            // ⭕ 警告箇所①：プラス結合を廃止し、Dart公式推奨の文字列補間「${...}」形式へスマートに統合完了！
-                            final http.Response response = await http.get(
-                              Uri.parse('https://tinyurl.com{Uri.encodeComponent(shareUrl)}')
-                            );
-                            if (response.statusCode == 200) {
-                              finalUrl = response.body.trim(); 
-                            }
-                          } catch (_) {
-                            // エラー時は安全のため元のURLで補合
-                          }
-
-                          // ⭕ 警告箇所②：送られる文章もプラス記号を使わず、すべてスッキリと成形いたしました！
-                          final String formattedMsg = '【無限保存・クラウドメモ】\nあなたへ共有メモが届きました！\n下のリンクをタップするとアプリに追加されます。\n\n$finalUrl';
                           final String csvPhones = phones.join(',');
-                          
-                          // ⭕ 警告箇所③：一斉SMS送信用URLの組み立ても、すべて完璧に推奨スタイルを満たしています！
-                          final Uri smsUri = Uri.parse('sms:$csvPhones?body=${Uri.encodeComponent(formattedMsg)}');
-                          if (await canLaunchUrl(smsUri)) { await launchUrl(smsUri); }
+                          // ⭕ お節介なポップアップ確認画面を出さずにダイレクト起動する仕組みです！
+                          final String smsUrl = 'sms:$csvPhones?body=${Uri.encodeComponent(formattedMsg)}';
+                          html.window.open(smsUrl, '_self'); 
                         },
                         icon: const Text('💬', style: TextStyle(fontSize: 16)),
                         label: const Text('選んだメンバーにSMS送信'),
@@ -499,13 +498,12 @@ class _MemoPageState extends State<MemoPage> {
         title: Text(_isMemberMode ? '👥 メンバー管理' : '無限保存・クラウドメモ'),
         backgroundColor: Colors.blue,
         actions: [
-          // 👥 案B：画面切り替え用のボタンをスマートに配置
           IconButton(
             icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)),
             onPressed: () {
               setState(() {
                 _isMemberMode = !_isMemberMode;
-                _isSelectMode = false; // メンバー画面に行く時は選択モードを閉じる
+                _isSelectMode = false; 
               });
             },
           ),
@@ -519,7 +517,7 @@ class _MemoPageState extends State<MemoPage> {
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: _isMemberMode 
-            ? _buildMemberScreen() // 👥 メンバー画面を案Bの切り替えで表示
+            ? _buildMemberScreen() 
             : Column(
                 children: [
                   if (!_isSelectMode) ...[
