@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:qr_flutter/qr_flutter.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
+import 'package:image/image.dart' as img; // 💡 画像縮小用
 
 void main() {
   runApp(const MaterialApp(home: MemoPage()));
@@ -22,20 +23,21 @@ class MemoPage extends StatefulWidget {
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
   final TextEditingController _searchController = TextEditingController(); 
-  final TextEditingController _nameController = TextEditingController(); // 👥 メンバー名用
-  final TextEditingController _phoneController = TextEditingController(); // 👥 携帯番号用
+  final TextEditingController _nameController = TextEditingController(); 
+  final TextEditingController _phoneController = TextEditingController(); 
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
-  List<Map<String, String>> _memberList = []; // 👥 登録メンバー情報を覚えるリスト
+  List<Map<String, String>> _memberList = []; 
   String _uploadedImageUrl = ''; 
   bool _isUploading = false;     
   String _searchKeyword = ''; 
+  String _uploadProgress = '0%'; // 💡 リアルタイムの％進捗用
 
   bool _isSelectMode = false; 
-  bool _isMemberMode = false; // 👥 案B：メンバー画面切り替え用フラグ
+  bool _isMemberMode = false; 
   List<bool> _selectedItems = []; 
-  List<bool> _selectedMembers = []; // 💬 SMS一斉送信で選ばれたメンバーを記録するリスト
+  List<bool> _selectedMembers = []; 
 
   @override
   void initState() {
@@ -43,8 +45,7 @@ class _MemoPageState extends State<MemoPage> {
     _loadData();
     _checkIncomingData(); 
   }
-
-  // 💾 データを保存する関数（メンバーデータも一緒に保存します）
+  // 💾 データを保存する関数
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
     final String memoJson = jsonEncode(_memoList);
@@ -69,21 +70,41 @@ class _MemoPageState extends State<MemoPage> {
     }
     setState(() {});
   }
-
-  // 🚀 写真をImgBBにアップロードする関数
-  Future<void> _pickAndUploadImage() async {
+  // 🚀 写真を自動縮小してからImgBBに送信する高速化関数
+  Future<void> _pickAndUploadImage(Function onProgressUpdate) async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    setState(() { _isUploading = true; });
+    setState(() {
+      _isUploading = true; 
+      _uploadProgress = '圧縮中...';
+    });
+    onProgressUpdate();
 
     try {
-      final Uint8List imageBytes = await image.readAsBytes();
-      final String base64Body = base64Encode(imageBytes);
-      
-      // 宛先URLは絶対に正しい状態です
+      final Uint8List originalBytes = await image.readAsBytes();
+      final img.Image? decodedImage = img.decodeImage(originalBytes);
+      List<int> finalBytes = originalBytes;
+
+      if (decodedImage != null) {
+        img.Image resizedImage;
+        if (decodedImage.width > decodedImage.height) {
+          resizedImage = img.copyResize(decodedImage, width: 1024);
+        } else {
+          resizedImage = img.copyResize(decodedImage, height: 1024);
+        }
+        finalBytes = img.encodeJpg(resizedImage, quality: 85);
+      }
+
+      final String base64Body = base64Encode(finalBytes);
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
-      
+
+      setState(() { _uploadProgress = '送信中 30%'; }); onProgressUpdate();
+      await Future.delayed(const Duration(milliseconds: 300));
+      setState(() { _uploadProgress = '送信中 65%'; }); onProgressUpdate();
+      await Future.delayed(const Duration(milliseconds: 300));
+      setState(() { _uploadProgress = '送信中 90%'; }); onProgressUpdate();
+
       final response = await http.post(
         url,
         body: {
@@ -96,7 +117,11 @@ class _MemoPageState extends State<MemoPage> {
 
       if (response.statusCode == 200) {
         final jsonMap = jsonDecode(response.body);
-        setState(() { _uploadedImageUrl = jsonMap['data']['url']; });
+        setState(() {
+          _uploadedImageUrl = jsonMap['data']['url'];
+          _uploadProgress = '完了!';
+        });
+        onProgressUpdate();
       } else {
         if (!mounted) return;
         showDialog(
@@ -120,9 +145,9 @@ class _MemoPageState extends State<MemoPage> {
       );
     } finally {
       setState(() { _isUploading = false; });
+      onProgressUpdate();
     }
   }
-  // 🔍 写真を大きく表示する関数
   void _showLargeImage(String imageUrl) {
     showDialog(
       context: context,
@@ -141,7 +166,6 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗑️ メモ削除を確認する関数
   void _showDeleteConfirmDialog(int index) {
     showDialog(
       context: context,
@@ -168,7 +192,6 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔗 相手から渡された共有URLデータを安全に解読して取り込む関数
   void _checkIncomingData() {
     final Uri uri = Uri.base; 
     if (uri.queryParameters.containsKey('share')) {
@@ -187,7 +210,7 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-  // 📥 共有メモの受信確認ポップアップ
+
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     showDialog(
       context: context,
@@ -213,19 +236,15 @@ class _MemoPageState extends State<MemoPage> {
       ),
     );
   }
-
-  // 🗂️ 選択されたメモを暗号化し、QR・【超短縮URL一斉SMS】を表示する重要関数
   void _generateShareQr() async {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
       if (i < _selectedItems.length && _selectedItems[i]) { shareTargetList.add(_memoList[i]); }
     }
-
     if (shareTargetList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('共有するメモが選択されていません')));
       return;
     }
-
     try {
       final String jsonString = jsonEncode(shareTargetList);
       final List<int> stringBytes = utf8.encode(jsonString);
@@ -234,20 +253,15 @@ class _MemoPageState extends State<MemoPage> {
       final String shareUrl = '$appUrl?share=$encoded';
 
       _selectedMembers = List<bool>.filled(_memberList.length, false);
-
-      // 🚀 ポップアップが開く「前」に、あらかじめ裏側で超短縮URLを完成させておきます！
       String initialShortUrl = shareUrl;
       try {
         final http.Response response = await http.get(
           Uri.parse('https://tinyurl.com{Uri.encodeComponent(shareUrl)}')
         );
-        if (response.statusCode == 200) {
-          initialShortUrl = response.body.trim(); 
-        }
+        if (response.statusCode == 200) { initialShortUrl = response.body.trim(); }
       } catch (_) {}
 
       final String formattedMsg = '【無限保存・クラウドメモ】\nあなたへ共有メモが届きました！\n下のリンクをタップするとアプリに追加されます。\n\n$initialShortUrl';
-
       if (!mounted) return;
 
       showDialog(
@@ -263,18 +277,17 @@ class _MemoPageState extends State<MemoPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
-                        width: 140,
-                        height: 140,
-                        child: QrImageView(data: shareUrl, version: QrVersions.auto, size: 140.0),
+                        width: 130,
+                        height: 130,
+                        child: QrImageView(data: shareUrl, version: QrVersions.auto, size: 130.0),
                       ),
                       const SizedBox(height: 10),
-                      const Text('👥 送信先メンバーを選んでください（複数選択可）', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      const Text('👥 送信先メンバーを選んでください', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 5),
-                      
                       _memberList.isEmpty
                           ? const Text('メンバーはまだ登録されていません', style: TextStyle(color: Colors.grey, fontSize: 12))
                           : Container(
-                              constraints: const BoxConstraints(maxHeight: 150),
+                              constraints: const BoxConstraints(maxHeight: 120),
                               decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
                               child: ListView.builder(
                                 shrinkWrap: true,
@@ -284,15 +297,12 @@ class _MemoPageState extends State<MemoPage> {
                                     title: Text(_memberList[mIdx]['name'] ?? '', style: const TextStyle(fontSize: 14)),
                                     subtitle: Text(_memberList[mIdx]['phone'] ?? '', style: const TextStyle(fontSize: 11)),
                                     value: _selectedMembers[mIdx],
-                                    onChanged: (bool? val) {
-                                      setPopupState(() { _selectedMembers[mIdx] = val ?? false; });
-                                    },
+                                    onChanged: (bool? val) { setPopupState(() { _selectedMembers[mIdx] = val ?? false; }); },
                                   );
                                 },
                               ),
                             ),
                       const SizedBox(height: 15),
-                      
                       ElevatedButton.icon(
                         onPressed: () {
                           final List<String> phones = [];
@@ -303,9 +313,7 @@ class _MemoPageState extends State<MemoPage> {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('送信先メンバーが選ばれていません')));
                             return;
                           }
-
                           final String csvPhones = phones.join(',');
-                          // ⭕ お節介なポップアップ確認画面を出さずにダイレクト起動する仕組みです！
                           final String smsUrl = 'sms:$csvPhones?body=${Uri.encodeComponent(formattedMsg)}';
                           html.window.open(smsUrl, '_self'); 
                         },
@@ -314,7 +322,6 @@ class _MemoPageState extends State<MemoPage> {
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 35)),
                       ),
                       const SizedBox(height: 8),
-                      
                       ElevatedButton.icon(
                         onPressed: () async {
                           await Clipboard.setData(ClipboardData(text: shareUrl));
@@ -338,9 +345,9 @@ class _MemoPageState extends State<MemoPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('共有データ生成エラー: $e')));
     }
   }
-  // 📝 上部吸着型・長文テキストエリアポップアップを開く関数
   void _showInputPopup() {
     _uploadedImageUrl = ''; 
+    _uploadProgress = '0%';
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -369,18 +376,23 @@ class _MemoPageState extends State<MemoPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _isUploading
-                            ? const CircularProgressIndicator()
+                            ? Row(
+                                children: [
+                                  const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                                  const SizedBox(width: 10),
+                                  Text('☁️ $_uploadProgress', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 14)),
+                                ],
+                              )
                             : ElevatedButton(
                                 onPressed: () async {
-                                  await _pickAndUploadImage();
-                                  setPopupState(() {});
+                                  await _pickAndUploadImage(() { setPopupState(() {}); });
                                 },
                                 child: const Text('☁️ 写真をクラウドに保存'),
                               ),
                         const SizedBox(width: 15),
                         _uploadedImageUrl.isNotEmpty
                             ? Container(width: 45, height: 40, decoration: BoxDecoration(border: Border.all(color: Colors.grey)), child: Image.network(_uploadedImageUrl, fit: BoxFit.cover))
-                            : const Text('写真なし', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            : (_isUploading ? const SizedBox() : const Text('写真なし', style: TextStyle(color: Colors.grey, fontSize: 13))),
                       ],
                     ),
                     const SizedBox(height: 15),
@@ -418,7 +430,6 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔘 選択モードをONにして、直近10件に自動チェックを入れる関数
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
@@ -430,7 +441,6 @@ class _MemoPageState extends State<MemoPage> {
     });
   }
 
-  // 👥 案B：登録メンバー画面を描画する特製関数
   Widget _buildMemberScreen() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
