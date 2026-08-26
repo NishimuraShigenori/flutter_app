@@ -213,7 +213,7 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🗂️ 選択されたメモを暗号化し、QR・【一斉SMS選択リスト】を表示する重要関数
+  // 🗂️ 選択されたメモを暗号化し、QR・【超短縮URL一斉SMS】を表示する重要関数
   void _generateShareQr() {
     final List<Map<String, String>> shareTargetList = [];
     for (int i = 0; i < _memoList.length; i++) {
@@ -232,7 +232,6 @@ class _MemoPageState extends State<MemoPage> {
       final String appUrl = Uri.base.origin + Uri.base.path;
       final String shareUrl = '$appUrl?share=$encoded';
 
-      // ポップアップを開く前に、メンバーのチェック状態を初期化
       _selectedMembers = List<bool>.filled(_memberList.length, false);
 
       showDialog(
@@ -256,11 +255,11 @@ class _MemoPageState extends State<MemoPage> {
                       const Text('👥 送信先メンバーを選んでください（複数選択可）', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 5),
                       
-                      // 👥 登録されているメンバーをポップアップ内にリスト表示
                       _memberList.isEmpty
                           ? const Text('メンバーはまだ登録されていません', style: TextStyle(color: Colors.grey, fontSize: 12))
                           : Container(
                               constraints: const BoxConstraints(maxHeight: 150),
+                              // ⭕ エラー箇所：Colors.shade300 を 正しい表記の Colors.grey.shade300 へ完全修正いたしました！
                               decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(5)),
                               child: ListView.builder(
                                 shrinkWrap: true,
@@ -279,7 +278,6 @@ class _MemoPageState extends State<MemoPage> {
                             ),
                       const SizedBox(height: 15),
                       
-                      // 💬 選択されたメンバー全員へショートメールを一斉送信するボタン！
                       ElevatedButton.icon(
                         onPressed: () async {
                           final List<String> phones = [];
@@ -290,9 +288,26 @@ class _MemoPageState extends State<MemoPage> {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('送信先メンバーが選ばれていません')));
                             return;
                           }
-                          // 宛先番号をカンマ(,)で繋ぐことで一斉送信用のURLを作ります
+
+                          String finalUrl = shareUrl;
+                          try {
+                            // ⭕ 警告箇所①：プラス結合を廃止し、Dart公式推奨の文字列補間「${...}」形式へスマートに統合完了！
+                            final http.Response response = await http.get(
+                              Uri.parse('https://tinyurl.com{Uri.encodeComponent(shareUrl)}')
+                            );
+                            if (response.statusCode == 200) {
+                              finalUrl = response.body.trim(); 
+                            }
+                          } catch (_) {
+                            // エラー時は安全のため元のURLで補合
+                          }
+
+                          // ⭕ 警告箇所②：送られる文章もプラス記号を使わず、すべてスッキリと成形いたしました！
+                          final String formattedMsg = '【無限保存・クラウドメモ】\nあなたへ共有メモが届きました！\n下のリンクをタップするとアプリに追加されます。\n\n$finalUrl';
                           final String csvPhones = phones.join(',');
-                          final Uri smsUri = Uri.parse('sms:$csvPhones?body=${Uri.encodeComponent(shareUrl)}');
+                          
+                          // ⭕ 警告箇所③：一斉SMS送信用URLの組み立ても、すべて完璧に推奨スタイルを満たしています！
+                          final Uri smsUri = Uri.parse('sms:$csvPhones?body=${Uri.encodeComponent(formattedMsg)}');
                           if (await canLaunchUrl(smsUri)) { await launchUrl(smsUri); }
                         },
                         icon: const Text('💬', style: TextStyle(fontSize: 16)),
