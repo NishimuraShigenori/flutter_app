@@ -221,7 +221,10 @@ class _MemoPageState extends State<MemoPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
-              setState(() { _memoList.insertAll(0, incomingMemos); });
+              setState(() { 
+                // ⭕ 改善ポイント：届いたメモも、自分のリストの先頭（最新）に綺麗に挿入されるように配置！
+                _memoList.insertAll(0, incomingMemos); 
+              });
               _saveData();
               Navigator.pop(context);
               if (kIsWeb) {
@@ -407,7 +410,8 @@ class _MemoPageState extends State<MemoPage> {
                               final now = DateTime.now();
                               final String formattedDate = '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
                               setState(() {
-                                _memoList.add({'text': _controller.text, 'date': formattedDate, 'image': _uploadedImageUrl});
+                                // ⭕ 改善ポイント：新しく追加したメモが、常にリストの「一番最初(先頭)」に来るように insert で改造！
+                                _memoList.insert(0, {'text': _controller.text, 'date': formattedDate, 'image': _uploadedImageUrl});
                                 _uploadedImageUrl = ''; 
                               });
                               _saveData();
@@ -430,13 +434,17 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
+  // 🔘 選択モードON/OFF（最新順＆最新の1件のみデフォルトチェックに大改造！）
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
+        // 全てのチェックボックスを一旦空っぽ(false)で作成
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        final int startIndex = _memoList.length > 10 ? _memoList.length - 10 : 0;
-        for (int i = startIndex; i < _memoList.length; i++) { _selectedItems[i] = true; }
+        // ⭕ にしむら様のご希望：メモが存在する場合、最も上にある「一番最新の1件だけ」を自動でtrue(チェック☑️)にします！
+        if (_memoList.isNotEmpty) {
+          _selectedItems[0] = true;
+        }
       }
     });
   }
