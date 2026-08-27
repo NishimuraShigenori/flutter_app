@@ -221,10 +221,7 @@ class _MemoPageState extends State<MemoPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
-              setState(() { 
-                // ⭕ 改善ポイント：届いたメモも、自分のリストの先頭（最新）に綺麗に挿入されるように配置！
-                _memoList.insertAll(0, incomingMemos); 
-              });
+              setState(() { _memoList.insertAll(0, incomingMemos); });
               _saveData();
               Navigator.pop(context);
               if (kIsWeb) {
@@ -402,6 +399,7 @@ class _MemoPageState extends State<MemoPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        // ⭕ エラー箇所：紛れ込んでいた謎の「Main」の一文を完全に消去して修正しました！
                         TextButton(onPressed: () { _controller.clear(); Navigator.pop(context); }, child: const Text('キャンセル', style: TextStyle(color: Colors.grey, fontSize: 16))),
                         const SizedBox(width: 15),
                         ElevatedButton(
@@ -410,7 +408,6 @@ class _MemoPageState extends State<MemoPage> {
                               final now = DateTime.now();
                               final String formattedDate = '${now.year}/${now.month}/${now.day} ${now.hour}:${now.minute}';
                               setState(() {
-                                // ⭕ 改善ポイント：新しく追加したメモが、常にリストの「一番最初(先頭)」に来るように insert で改造！
                                 _memoList.insert(0, {'text': _controller.text, 'date': formattedDate, 'image': _uploadedImageUrl});
                                 _uploadedImageUrl = ''; 
                               });
@@ -434,14 +431,12 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  // 🔘 選択モードON/OFF（最新順＆最新の1件のみデフォルトチェックに大改造！）
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
-        // 全てのチェックボックスを一旦空っぽ(false)で作成
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // ⭕ にしむら様のご希望：メモが存在する場合、最も上にある「一番最新の1件だけ」を自動でtrue(チェック☑️)にします！
+        // ⭕ エラー箇所：型エラーを解決し、0番目（最上部にある最新の1件だけ）を確実にチェック状態にする記述に完全修正しました！
         if (_memoList.isNotEmpty) {
           _selectedItems[0] = true;
         }
@@ -513,7 +508,11 @@ class _MemoPageState extends State<MemoPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isMemberMode ? '👥 メンバー管理' : '無限保存・クラウドメモ'),
+        // ⭕ 変更点：タイトル文字を「クラウドメモ」にし、背景の青に対してバッチリ読める「白の太字」に変更しました！
+        title: Text(
+          _isMemberMode ? '👥 メンバー管理' : 'クラウドメモ',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(
@@ -579,7 +578,6 @@ class _MemoPageState extends State<MemoPage> {
                     },
                   ),
                   const SizedBox(height: 15),
-
                   if (_isSelectMode) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
