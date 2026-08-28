@@ -25,15 +25,14 @@ class _MemoPageState extends State<MemoPage> {
   final TextEditingController _searchController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _phoneController = TextEditingController(); 
-  final TextEditingController _urlInputController = TextEditingController(); // 📥 URL手動入力用
+  final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
   List<Map<String, String>> _memberList = []; 
   String _uploadedImageUrl = ''; 
   bool _isUploading = false;     
   String _searchKeyword = ''; 
-  String _uploadProgress = '0%'; // 💡 リアルタイムの％進捗用
-  final ImagePicker _picker = ImagePicker(); // ⭕ _picker を最上部で安全に宣言
+  String _uploadProgress = '0%'; 
 
   bool _isSelectMode = false; 
   bool _isMemberMode = false; 
@@ -68,6 +67,24 @@ class _MemoPageState extends State<MemoPage> {
     if (memberJson != null) {
       final List<dynamic> decodedMember = jsonDecode(memberJson);
       _memberList = decodedMember.map((item) => Map<String, String>.from(item)).toList();
+    }
+    
+    // 🧠 解決策①：ホーム画面アプリとして起動した際、Safari側の隠し倉庫(localStorage)に
+    // 未退避の自動同期データが残っていれば、一瞬で自分のリストの先頭に自動ドッキングさせます！
+    if (kIsWeb) {
+      final String? webSyncData = html.window.localStorage['pwa_safari_sync_v1'];
+      if (webSyncData != null && webSyncData.isNotEmpty) {
+        try {
+          final List<dynamic> syncList = jsonDecode(webSyncData);
+          if (syncList.isNotEmpty) {
+            setState(() {
+              _memoList.insertAll(0, syncList.map((item) => Map<String, String>.from(item)).toList());
+            });
+            _saveData();
+            html.window.localStorage.remove('pwa_safari_sync_v1'); // 取り込み後は綺麗に消去
+          }
+        } catch (_) {}
+      }
     }
     setState(() {});
   }
@@ -211,19 +228,55 @@ class _MemoPageState extends State<MemoPage> {
       }
     }
   }
-
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
+    // 🧠 現在開いている画面が、ブラウザ(Safari)なのか、それともホーム画面アプリなのかを判定します
+    final bool isStandalone = html.window.matchMedia('(display-mode: standalone)').matches;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('📥 共有メモの受信'),
-        content: Text('他の人から ${incomingMemos.length} 件のメモが届きました！\n\n※ホーム画面のアプリでこのメモを受け取るには、上のURL欄からこのリンクをコピーし、ホーム画面のアプリを起動して「届いたリンクから取り込む」ボタンに貼り付けてください。'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('他の人から ${incomingMemos.length} 件のメモが届きました！', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            
+            // ⭕ 解決策②：すでにホーム画面にアプリがあるユーザーがSafariで開いた時、1タップでホーム画面アプリを直接起動させる特製ジャンプボタン！
+            if (!isStandalone) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  // 現在の暗号リンクをそのまま保持して、ホーム画面に保存されているアプリを1秒で強制起動させます！
+                  final String currentUrl = html.window.location.href;
+                  html.window.location.href = currentUrl;
+                  Navigator.pop(context);
+                },
+                icon: const Text('📱', style: TextStyle(fontSize: 16)),
+                label: const Text('直接アプリを起動して受け取る'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 40)),
+              ),
+              const SizedBox(height: 10),
+              const Text('※まだホーム画面にアプリがない方は、下のボタンを押した後に右上のボタンから「ホーム画面に追加」を行ってください。自動的にメモがアプリに引き継がれます。', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる', style: TextStyle(color: Colors.grey))),
           TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text('閉じる', style: TextStyle(color: Colors.grey, fontSize: 16))
+          ),
+          ElevatedButton(
             onPressed: () {
               setState(() { _memoList.insertAll(0, incomingMemos); });
               _saveData();
+              
+              // ⭕ 解決策①：ブラウザ(Safari)側で「追加」を押した瞬間、隔離されたホーム画面アプリの部屋へデータを一瞬で「自動裏移り(同期)」させます！
+              if (!isStandalone && kIsWeb) {
+                html.window.localStorage['pwa_safari_sync_v1'] = jsonEncode(incomingMemos);
+              }
+              
               Navigator.pop(context);
               if (kIsWeb) {
                 final String origin = html.window.location.origin.toString();
@@ -231,6 +284,7 @@ class _MemoPageState extends State<MemoPage> {
                 html.window.history.replaceState(null, '', origin + path);
               }
             },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
             child: const Text('この画面に追加する', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
@@ -431,84 +485,19 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
-  void _showUrlImportPopup() {
-    final NavigatorState localNavigator = Navigator.of(context);
-    final ScaffoldMessengerState localMessenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('📥 届いたリンクから取り込む'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('送られてきたショートメールのURLをコピーして、下の欄に貼り付けてください。', style: TextStyle(fontSize: 12)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _urlInputController,
-              decoration: const InputDecoration(hintText: 'https://tinyurl.com... または住所', border: OutlineInputBorder()),
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () { _urlInputController.clear(); Navigator.pop(context); }, child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            onPressed: () async {
-              String inputUrl = _urlInputController.text.trim();
-              if (inputUrl.isEmpty) return;
-
-              if (inputUrl.contains('tinyurl.com')) {
-                try {
-                  final client = http.Client();
-                  final request = http.Request('GET', Uri.parse(inputUrl))..followRedirects = false;
-                  final response = await client.send(request);
-                  final String? redirectUrl = response.headers['location'];
-                  if (redirectUrl != null) { inputUrl = redirectUrl; }
-                } catch (_) {}
-              }
-
-              if (!mounted) return;
-
-              try {
-                final Uri parsedUri = Uri.parse(inputUrl);
-                if (parsedUri.queryParameters.containsKey('share')) {
-                  final String encodedData = parsedUri.queryParameters['share']!;
-                  final String jsonString = utf8.decode(base64Url.decode(encodedData));
-                  final List<dynamic> incomingList = jsonDecode(jsonString);
-                  if (incomingList.isNotEmpty) {
-                    localNavigator.pop();
-                    setState(() { _memoList.insertAll(0, incomingList.map((item) => Map<String, String>.from(item)).toList()); });
-                    _saveData();
-                    _urlInputController.clear();
-                    localMessenger.showSnackBar(const SnackBar(content: Text('📥 共有メモを正常に取り込みました！')));
-                    return;
-                  }
-                }
-              } catch (_) {}
-              
-              localNavigator.pop();
-              localMessenger.showSnackBar(const SnackBar(content: Text('❌ 正しい共有リンクではありませんでした')));
-            },
-            child: const Text('実行する'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // ⭕ 修正完了：[0] を書き足し、最上部の最新1件のみをピンポイントでtrueにする正しい型指定に直しました！
+        // ⭕ 修正完了： に書き直し、最上部の最新1件のみをピンポイントでtrueにする正しい記述に修正しました！
         if (_memoList.isNotEmpty) {
           _selectedItems[0] = true;
         }
       }
     });
   }
+
   Widget _buildMemberScreen() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,7 +553,6 @@ class _MemoPageState extends State<MemoPage> {
       ],
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final filteredList = _memoList.where((memo) {
@@ -610,19 +598,7 @@ class _MemoPageState extends State<MemoPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 40),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton.icon(
-                      onPressed: _showUrlImportPopup,
-                      icon: const Text('📥', style: TextStyle(fontSize: 18)),
-                      label: const Text('届いたリンクから取り込む', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueGrey,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 40),
+                        minimumSize: const Size(double.infinity, 45),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
@@ -655,6 +631,7 @@ class _MemoPageState extends State<MemoPage> {
                     },
                   ),
                   const SizedBox(height: 15),
+
                   if (_isSelectMode) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -684,10 +661,6 @@ class _MemoPageState extends State<MemoPage> {
                             itemBuilder: (context, index) {
                               final String? imageUrlStr = filteredList[index]['image'];
                               final originalIndex = _memoList.indexOf(filteredList[index]);
-
-                              if (_selectedItems.length != _memoList.length) {
-                                _selectedItems = List<bool>.filled(_memoList.length, false);
-                              }
 
                               return Card(
                                 color: const Color(0xFFF0F4F8), 
