@@ -25,7 +25,7 @@ class _MemoPageState extends State<MemoPage> {
   final TextEditingController _searchController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _phoneController = TextEditingController(); 
-  final ImagePicker _picker = ImagePicker(); 
+  final TextEditingController _urlInputController = TextEditingController(); // 📥 URL手動入力用
   
   List<Map<String, String>> _memoList = [];
   List<Map<String, String>> _memberList = []; 
@@ -33,6 +33,7 @@ class _MemoPageState extends State<MemoPage> {
   bool _isUploading = false;     
   String _searchKeyword = ''; 
   String _uploadProgress = '0%'; // 💡 リアルタイムの％進捗用
+  final ImagePicker _picker = ImagePicker(); // ⭕ _picker を最上部で安全に宣言
 
   bool _isSelectMode = false; 
   bool _isMemberMode = false; 
@@ -216,9 +217,9 @@ class _MemoPageState extends State<MemoPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('📥 共有メモの受信'),
-        content: Text('他の人から ${incomingMemos.length} 件のメモが届きました！\nあなたのメモ帳に追加しますか？'),
+        content: Text('他の人から ${incomingMemos.length} 件のメモが届きました！\n\n※ホーム画面のアプリでこのメモを受け取るには、上のURL欄からこのリンクをコピーし、ホーム画面のアプリを起動して「届いたリンクから取り込む」ボタンに貼り付けてください。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               setState(() { _memoList.insertAll(0, incomingMemos); });
@@ -230,7 +231,7 @@ class _MemoPageState extends State<MemoPage> {
                 html.window.history.replaceState(null, '', origin + path);
               }
             },
-            child: const Text('追加する', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('この画面に追加する', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -399,7 +400,6 @@ class _MemoPageState extends State<MemoPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // ⭕ エラー箇所：紛れ込んでいた謎の「Main」の一文を完全に消去して修正しました！
                         TextButton(onPressed: () { _controller.clear(); Navigator.pop(context); }, child: const Text('キャンセル', style: TextStyle(color: Colors.grey, fontSize: 16))),
                         const SizedBox(width: 15),
                         ElevatedButton(
@@ -431,19 +431,84 @@ class _MemoPageState extends State<MemoPage> {
     );
   }
 
+  void _showUrlImportPopup() {
+    final NavigatorState localNavigator = Navigator.of(context);
+    final ScaffoldMessengerState localMessenger = ScaffoldMessenger.of(context);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('📥 届いたリンクから取り込む'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('送られてきたショートメールのURLをコピーして、下の欄に貼り付けてください。', style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _urlInputController,
+              decoration: const InputDecoration(hintText: 'https://tinyurl.com... または住所', border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () { _urlInputController.clear(); Navigator.pop(context); }, child: const Text('キャンセル', style: TextStyle(color: Colors.grey))),
+          ElevatedButton(
+            onPressed: () async {
+              String inputUrl = _urlInputController.text.trim();
+              if (inputUrl.isEmpty) return;
+
+              if (inputUrl.contains('tinyurl.com')) {
+                try {
+                  final client = http.Client();
+                  final request = http.Request('GET', Uri.parse(inputUrl))..followRedirects = false;
+                  final response = await client.send(request);
+                  final String? redirectUrl = response.headers['location'];
+                  if (redirectUrl != null) { inputUrl = redirectUrl; }
+                } catch (_) {}
+              }
+
+              if (!mounted) return;
+
+              try {
+                final Uri parsedUri = Uri.parse(inputUrl);
+                if (parsedUri.queryParameters.containsKey('share')) {
+                  final String encodedData = parsedUri.queryParameters['share']!;
+                  final String jsonString = utf8.decode(base64Url.decode(encodedData));
+                  final List<dynamic> incomingList = jsonDecode(jsonString);
+                  if (incomingList.isNotEmpty) {
+                    localNavigator.pop();
+                    setState(() { _memoList.insertAll(0, incomingList.map((item) => Map<String, String>.from(item)).toList()); });
+                    _saveData();
+                    _urlInputController.clear();
+                    localMessenger.showSnackBar(const SnackBar(content: Text('📥 共有メモを正常に取り込みました！')));
+                    return;
+                  }
+                }
+              } catch (_) {}
+              
+              localNavigator.pop();
+              localMessenger.showSnackBar(const SnackBar(content: Text('❌ 正しい共有リンクではありませんでした')));
+            },
+            child: const Text('実行する'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleSelectMode() {
     setState(() {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // ⭕ エラー箇所：型エラーを解決し、0番目（最上部にある最新の1件だけ）を確実にチェック状態にする記述に完全修正しました！
+        // ⭕ 修正完了：[0] を書き足し、最上部の最新1件のみをピンポイントでtrueにする正しい型指定に直しました！
         if (_memoList.isNotEmpty) {
           _selectedItems[0] = true;
         }
       }
     });
   }
-
   Widget _buildMemberScreen() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,6 +564,7 @@ class _MemoPageState extends State<MemoPage> {
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     final filteredList = _memoList.where((memo) {
@@ -508,7 +574,6 @@ class _MemoPageState extends State<MemoPage> {
 
     return Scaffold(
       appBar: AppBar(
-        // ⭕ 変更点：タイトル文字を「クラウドメモ」にし、背景の青に対してバッチリ読める「白の太字」に変更しました！
         title: Text(
           _isMemberMode ? '👥 メンバー管理' : 'クラウドメモ',
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -545,7 +610,19 @@ class _MemoPageState extends State<MemoPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 45),
+                        minimumSize: const Size(double.infinity, 40),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton.icon(
+                      onPressed: _showUrlImportPopup,
+                      icon: const Text('📥', style: TextStyle(fontSize: 18)),
+                      label: const Text('届いたリンクから取り込む', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 40),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
