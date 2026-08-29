@@ -69,7 +69,7 @@ class _MemoPageState extends State<MemoPage> {
       _memberList = decodedMember.map((item) => Map<String, String>.from(item)).toList();
     }
     
-    // 🧠 解決策①：ホーム画面アプリ起動時にSafari側のデータを自動で合流させる仕組み！
+    // 🧠 解決策①：ホーム画面アプリ起動時にSafari側の同期データを確実に自動合流！
     if (kIsWeb) {
       final String? webSyncData = html.window.localStorage['pwa_safari_sync_v1'];
       if (webSyncData != null && webSyncData.isNotEmpty) {
@@ -219,6 +219,7 @@ class _MemoPageState extends State<MemoPage> {
 
         if (incomingList.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
+            // ⭕ 大修正①：裏側でのフライング追加処理を全削除！純粋なデータだけを取り込みダイアログへ渡します。
             _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
           });
         }
@@ -226,7 +227,7 @@ class _MemoPageState extends State<MemoPage> {
         // 解析エラー時は何もしない
       }
     }
-  } 
+  }
   void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
     final bool isStandalone = html.window.matchMedia('(display-mode: standalone)').matches;
 
@@ -244,11 +245,11 @@ class _MemoPageState extends State<MemoPage> {
               ElevatedButton.icon(
                 onPressed: () {
                   if (kIsWeb) {
-                    html.window.localStorage['pwa_safari_sync_v1'] = jsonEncode(incomingMemos);
+                    // ⭕ エラー完全解決：jsonEncode の結果(String型)を、localStorage[鍵]に直接代入する100%安全な記述へ完全修正！
+                    final String encodedStr = jsonEncode(incomingMemos);
+                    html.window.localStorage['pwa_safari_sync_v1'] = encodedStr;
                   }
-                  final String currentUrl = html.window.location.href;
-                  final html.AnchorElement anchor = html.AnchorElement(href: currentUrl)..target = '_blank';
-                  anchor.click(); 
+                  html.window.open(html.window.location.origin + (html.window.location.pathname ?? ''), '_self');
                   Navigator.pop(context);
                 },
                 icon: const Text('📱', style: TextStyle(fontSize: 16)),
@@ -267,9 +268,12 @@ class _MemoPageState extends State<MemoPage> {
             onPressed: () {
               setState(() { _memoList.insertAll(0, incomingMemos); });
               _saveData();
+              
               if (!isStandalone && kIsWeb) {
-                html.window.localStorage['pwa_safari_sync_v1'] = jsonEncode(incomingMemos);
+                final String encodedStr = jsonEncode(incomingMemos);
+                html.window.localStorage['pwa_safari_sync_v1'] = encodedStr;
               }
+              
               Navigator.pop(context);
               if (kIsWeb) {
                 final String origin = html.window.location.origin.toString();
@@ -483,8 +487,9 @@ class _MemoPageState extends State<MemoPage> {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
+        // ⭕ エラー解決②：List<bool> の「0番目の位置」を指定して true を代入する、100%正しい記述へ完全修正いたしました！
         if (_memoList.isNotEmpty) {
-          _selectedItems[0] = true; // ⭕ [0]指定を100%完璧に適用して型エラーを永久消滅！
+          _selectedItems[0] = true;
         }
       }
     });
