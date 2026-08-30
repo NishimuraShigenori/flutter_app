@@ -115,7 +115,7 @@ class _MemoPageState extends State<MemoPage> {
       }
 
       final String base64Body = base64Encode(finalBytes);
-      final Uri url = Uri.parse('https://imgbb.com');
+      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
 
       setState(() { _uploadProgress = '送信中 30%'; }); onProgressUpdate();
       await Future.delayed(const Duration(milliseconds: 300));
@@ -126,7 +126,7 @@ class _MemoPageState extends State<MemoPage> {
       final response = await http.post(
         url,
         body: {
-          'key': 'あなたの新しいImgBBの鍵', 
+          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', 
           'image': base64Body,
         },
       );
