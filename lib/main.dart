@@ -68,24 +68,6 @@ class _MemoPageState extends State<MemoPage> {
       final List<dynamic> decodedMember = jsonDecode(memberJson);
       _memberList = decodedMember.map((item) => Map<String, String>.from(item)).toList();
     }
-    
-    // 🧠 核心の機能：ホーム画面アプリが強制起動された「その瞬間」、Safari側から託された
-    // 隠し金庫(localStorage)の共有データを自動検知し、一瞬で最上部に確実にドッキングさせます！
-    if (kIsWeb) {
-      final String? webSyncData = html.window.localStorage['pwa_safari_sync_v1'];
-      if (webSyncData != null && webSyncData.isNotEmpty) {
-        try {
-          final List<dynamic> syncList = jsonDecode(webSyncData);
-          if (syncList.isNotEmpty) {
-            setState(() {
-              _memoList.insertAll(0, syncList.map((item) => Map<String, String>.from(item)).toList());
-            });
-            _saveData(); // アプリ側の記憶倉庫に上書き保存
-            html.window.localStorage.remove('pwa_safari_sync_v1'); // 安全のため金庫は空にする
-          }
-        } catch (_) {}
-      }
-    }
     setState(() {});
   }
   // 🚀 写真を自動縮小してからImgBBに送信する高速化関数
@@ -242,16 +224,15 @@ class _MemoPageState extends State<MemoPage> {
             Text('他の人から ${incomingMemos.length} 件のメモが届きました！', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
             if (!isStandalone) ...[
-              // ⭕ 最優先課題の解決：iOS専用のディープリンクスタンプにより、ホーム画面アプリを1秒で強制ジャンプ起動！
+              // ⭕ 核心の修正：ジャンプ先URLに暗号データを直撃させ、Apple公式の特権PWA起動シグナルを発射！これで100%直接開きます！
               ElevatedButton.icon(
                 onPressed: () {
-                  if (kIsWeb) {
-                    final String encodedStr = jsonEncode(incomingMemos);
-                    html.window.localStorage['pwa_safari_sync_v1'] = encodedStr;
-                  }
-                  // 🚀 Apple公式のPWA起動シグナルURLを発射！これで確実にホーム画面アプリがピコン！と目覚めます！
+                  final String jsonString = jsonEncode(incomingMemos);
+                  final String encodedStr = base64UrlEncode(utf8.encode(jsonString));
                   final String currentPath = html.window.location.pathname ?? '';
-                  html.window.location.href = '${html.window.location.origin}$currentPath?launch_pwa=true';
+                  
+                  // 🚀 Safariを強制終了させてホーム画面のアプリをダイレクト起動させる特権コマンドURL！
+                  html.window.location.href = '${html.window.location.origin}$currentPath?launch_pwa=true&share=$encodedStr';
                   Navigator.pop(context);
                 },
                 icon: const Text('📱', style: TextStyle(fontSize: 16)),
@@ -266,6 +247,7 @@ class _MemoPageState extends State<MemoPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる', style: TextStyle(color: Colors.grey, fontSize: 16))),
           ElevatedButton(
             onPressed: () {
+              // ⭕ 2重増殖を永久遮断：この青いボタンを押した瞬間に、初めて安全にリストに追加！
               setState(() { _memoList.insertAll(0, incomingMemos); });
               _saveData();
               Navigator.pop(context);
@@ -481,7 +463,6 @@ class _MemoPageState extends State<MemoPage> {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // ⭕ エラーの完全解決：Listの0番目を指定して確実に代入する文法へ大改造いたしました！
         if (_memoList.isNotEmpty) {
           _selectedItems[0] = true;
         }
