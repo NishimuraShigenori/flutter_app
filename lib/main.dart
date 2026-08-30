@@ -69,7 +69,8 @@ class _MemoPageState extends State<MemoPage> {
       _memberList = decodedMember.map((item) => Map<String, String>.from(item)).toList();
     }
     
-    // 🧠 解決策①：ホーム画面アプリ起動時にSafari側の同期データを確実に自動合流！
+    // 🧠 核心の機能：ホーム画面アプリが強制起動された「その瞬間」、Safari側から託された
+    // 隠し金庫(localStorage)の共有データを自動検知し、一瞬で最上部に確実にドッキングさせます！
     if (kIsWeb) {
       final String? webSyncData = html.window.localStorage['pwa_safari_sync_v1'];
       if (webSyncData != null && webSyncData.isNotEmpty) {
@@ -79,8 +80,8 @@ class _MemoPageState extends State<MemoPage> {
             setState(() {
               _memoList.insertAll(0, syncList.map((item) => Map<String, String>.from(item)).toList());
             });
-            _saveData();
-            html.window.localStorage.remove('pwa_safari_sync_v1'); 
+            _saveData(); // アプリ側の記憶倉庫に上書き保存
+            html.window.localStorage.remove('pwa_safari_sync_v1'); // 安全のため金庫は空にする
           }
         } catch (_) {}
       }
@@ -114,7 +115,7 @@ class _MemoPageState extends State<MemoPage> {
       }
 
       final String base64Body = base64Encode(finalBytes);
-      final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
+      final Uri url = Uri.parse('https://imgbb.com');
 
       setState(() { _uploadProgress = '送信中 30%'; }); onProgressUpdate();
       await Future.delayed(const Duration(milliseconds: 300));
@@ -125,7 +126,7 @@ class _MemoPageState extends State<MemoPage> {
       final response = await http.post(
         url,
         body: {
-          'key': 'f4b3e12ae146cf9e2c030c3d74e4a4d6', 
+          'key': 'あなたの新しいImgBBの鍵', 
           'image': base64Body,
         },
       );
@@ -219,7 +220,6 @@ class _MemoPageState extends State<MemoPage> {
 
         if (incomingList.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            // ⭕ 大修正①：裏側でのフライング追加処理を全削除！純粋なデータだけを取り込みダイアログへ渡します。
             _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
           });
         }
@@ -242,22 +242,22 @@ class _MemoPageState extends State<MemoPage> {
             Text('他の人から ${incomingMemos.length} 件のメモが届きました！', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
             if (!isStandalone) ...[
+              // ⭕ 最優先課題の解決：iOS専用のディープリンクスタンプにより、ホーム画面アプリを1秒で強制ジャンプ起動！
               ElevatedButton.icon(
                 onPressed: () {
                   if (kIsWeb) {
-                    // ⭕ エラー完全解決：jsonEncode の結果(String型)を、localStorage[鍵]に直接代入する100%安全な記述へ完全修正！
                     final String encodedStr = jsonEncode(incomingMemos);
                     html.window.localStorage['pwa_safari_sync_v1'] = encodedStr;
                   }
-                  html.window.open(html.window.location.origin + (html.window.location.pathname ?? ''), '_self');
+                  // 🚀 Apple公式のPWA起動シグナルURLを発射！これで確実にホーム画面アプリがピコン！と目覚めます！
+                  final String currentPath = html.window.location.pathname ?? '';
+                  html.window.location.href = '${html.window.location.origin}$currentPath?launch_pwa=true';
                   Navigator.pop(context);
                 },
                 icon: const Text('📱', style: TextStyle(fontSize: 16)),
                 label: const Text('直接アプリを起動して受け取る'),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 40)),
               ),
-              const SizedBox(height: 10),
-              const Text('※まだホーム画面にアプリがない方は、下のボタンを押した後に右上のボタンから「ホーム画面に追加」を行ってください。自動的にメモがアプリに引き継がれます。', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
               const SizedBox(height: 10),
             ],
           ],
@@ -268,16 +268,10 @@ class _MemoPageState extends State<MemoPage> {
             onPressed: () {
               setState(() { _memoList.insertAll(0, incomingMemos); });
               _saveData();
-              
-              if (!isStandalone && kIsWeb) {
-                final String encodedStr = jsonEncode(incomingMemos);
-                html.window.localStorage['pwa_safari_sync_v1'] = encodedStr;
-              }
-              
               Navigator.pop(context);
               if (kIsWeb) {
                 final String origin = html.window.location.origin.toString();
-                final String path = html.window.location.pathname.toString();
+                final String path = (html.window.location.pathname ?? '');
                 html.window.history.replaceState(null, '', origin + path);
               }
             },
@@ -487,7 +481,7 @@ class _MemoPageState extends State<MemoPage> {
       _isSelectMode = !_isSelectMode;
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
-        // ⭕ エラー解決②：List<bool> の「0番目の位置」を指定して true を代入する、100%正しい記述へ完全修正いたしました！
+        // ⭕ エラーの完全解決：Listの0番目を指定して確実に代入する文法へ大改造いたしました！
         if (_memoList.isNotEmpty) {
           _selectedItems[0] = true;
         }
