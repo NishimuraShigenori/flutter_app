@@ -1,7 +1,7 @@
 {
     "name": "クラウドメモ",
     "short_name": "クラウドメモ",
-    "start_url": ".",
+    "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
@@ -13,14 +13,5 @@
             "sizes": "512x512",
             "type": "image/png"
         }
-    ],
-    "share_target": {
-        "action": "./",
-        "method": "GET",
-        "params": {
-            "title": "title",
-            "text": "text",
-            "url": "share"
-        }
-    }
+    ]
 }
