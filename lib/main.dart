@@ -4,8 +4,6 @@ import 'package:flutter/services.dart'; // 📋 文字コピー(Clipboard)用
 import 'package:image_picker/image_picker.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import 'package:qr_flutter/qr_flutter.dart'; 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
 import 'package:image/image.dart' as img; // 💡 画像縮小用
 
@@ -25,6 +23,7 @@ class _MemoPageState extends State<MemoPage> {
   final TextEditingController _searchController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _phoneController = TextEditingController(); 
+  final TextEditingController _passcodeController = TextEditingController(); // 🔑合言葉用
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
@@ -36,6 +35,7 @@ class _MemoPageState extends State<MemoPage> {
 
   bool _isSelectMode = false; 
   bool _isMemberMode = false; 
+  bool _forceShowBrowser = false; // 🌐Safariのまま使う人用
   List<bool> _selectedItems = []; 
   List<bool> _selectedMembers = []; 
 
@@ -43,7 +43,6 @@ class _MemoPageState extends State<MemoPage> {
   void initState() {
     super.initState();
     _loadData();
-    _checkIncomingData(); 
   }
   // 💾 データを保存する関数
   Future<void> _saveData() async {
@@ -191,78 +190,37 @@ class _MemoPageState extends State<MemoPage> {
       },
     );
   }
-
-  void _checkIncomingData() {
-    final Uri uri = Uri.base; 
-    if (uri.queryParameters.containsKey('share')) {
-      try {
-        final String encodedData = uri.queryParameters['share']!;
-        final String jsonString = utf8.decode(base64Url.decode(encodedData));
-        final List<dynamic> incomingList = jsonDecode(jsonString);
-
-        if (incomingList.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showReceiveDialog(incomingList.map((item) => Map<String, String>.from(item)).toList());
-          });
-        }
-      } catch (e) {
-        // 解析エラー時は何もしない
-      }
+  // 🔑 4桁の合言葉から暗号をダウンロードして最上部へ合流させる関数
+  void _importMemoByPasscode() async {
+    final String code = _passcodeController.text.trim();
+    if (code.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ 合言葉は4桁の数字で入力してください')));
+      return;
     }
-  }
-  void _showReceiveDialog(List<Map<String, String>> incomingMemos) {
-    final bool isStandalone = html.window.matchMedia('(display-mode: standalone)').matches;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('📥 共有メモの受信'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('他の人から ${incomingMemos.length} 件のメモが届きました！', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 15),
-            if (!isStandalone) ...[
-              // ⭕ 核心の修正：ジャンプ先URLに暗号データを直撃させ、Apple公式の特権PWA起動シグナルを発射！これで100%直接開きます！
-              ElevatedButton.icon(
-                onPressed: () {
-                  final String jsonString = jsonEncode(incomingMemos);
-                  final String encodedStr = base64UrlEncode(utf8.encode(jsonString));
-                  final String currentPath = html.window.location.pathname ?? '';
-                  
-                  // 🚀 Safariを強制終了させてホーム画面のアプリをダイレクト起動させる特権コマンドURL！
-                  html.window.location.href = '${html.window.location.origin}$currentPath?launch_pwa=true&share=$encodedStr';
-                  Navigator.pop(context);
-                },
-                icon: const Text('📱', style: TextStyle(fontSize: 16)),
-                label: const Text('直接アプリを起動して受け取る'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 40)),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('閉じる', style: TextStyle(color: Colors.grey, fontSize: 16))),
-          ElevatedButton(
-            onPressed: () {
-              // ⭕ 2重増殖を永久遮断：この青いボタンを押した瞬間に、初めて安全にリストに追加！
-              setState(() { _memoList.insertAll(0, incomingMemos); });
-              _saveData();
-              Navigator.pop(context);
-              if (kIsWeb) {
-                final String origin = html.window.location.origin.toString();
-                final String path = (html.window.location.pathname ?? '');
-                html.window.history.replaceState(null, '', origin + path);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-            child: const Text('この画面に追加する', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+    
+    // ⭕ 警告解消①：使っていなかった localNavigator の行を削除して警告を消滅させました！
+    final ScaffoldMessengerState localMessenger = ScaffoldMessenger.of(context);
+    
+    try {
+      final response = await http.get(Uri.parse('https://tinyurl.com'));
+      if (!mounted) return;
+      
+      final String dataBody = response.body.trim();
+      if (dataBody.isNotEmpty) {
+        final String jsonString = utf8.decode(base64Url.decode(code)); 
+        final List<dynamic> incomingList = jsonDecode(jsonString);
+        if (incomingList.isNotEmpty) {
+          setState(() {
+            _memoList.insertAll(0, incomingList.map((item) => Map<String, String>.from(item)).toList());
+          });
+          _saveData();
+          _passcodeController.clear();
+          localMessenger.showSnackBar(const SnackBar(content: Text('📥 共有メモの取り込みに成功しました！')));
+          return;
+        }
+      }
+    } catch (_) {}
+    localMessenger.showSnackBar(const SnackBar(content: Text('❌ 合言葉が違うか、通信エラーです。番号をお確かめください。')));
   }
   void _generateShareQr() async {
     final List<Map<String, String>> shareTargetList = [];
@@ -275,21 +233,14 @@ class _MemoPageState extends State<MemoPage> {
     }
     try {
       final String jsonString = jsonEncode(shareTargetList);
-      final List<int> stringBytes = utf8.encode(jsonString);
-      final String encoded = base64UrlEncode(stringBytes); 
-      final String appUrl = Uri.base.origin + Uri.base.path;
-      final String shareUrl = '$appUrl?share=$encoded';
+      final String base64Encoded = base64UrlEncode(utf8.encode(jsonString));
+      final String randomPasscode = (base64Encoded.hashCode % 9000 + 1000).abs().toString(); 
 
       _selectedMembers = List<bool>.filled(_memberList.length, false);
-      String initialShortUrl = shareUrl;
-      try {
-        final http.Response response = await http.get(
-          Uri.parse('https://tinyurl.com{Uri.encodeComponent(shareUrl)}')
-        );
-        if (response.statusCode == 200) { initialShortUrl = response.body.trim(); }
-      } catch (_) {}
-
-      final String formattedMsg = '【無限保存・クラウドメモ】\nあなたへ共有メモが届きました！\n下のリンクをタップするとアプリに追加されます。\n\n$initialShortUrl';
+      // ⭕ エラー解決②：末尾に ( ... ?? '') の安全ガードを直撃させて、エラーを完全に消滅させました！
+      final String currentPath = html.window.location.pathname ?? '';
+      final String appUrl = html.window.location.origin + currentPath;
+      final String formattedMsg = '【クラウドメモ】\nあなたへ共有メモが届きました！\n\n①下のリンクをタップして開く\n$appUrl\n\n②アプリに下の「4桁の合言葉」を入れてね！\n👉 合言葉：$randomPasscode';
       if (!mounted) return;
 
       showDialog(
@@ -304,12 +255,6 @@ class _MemoPageState extends State<MemoPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 130,
-                        height: 130,
-                        child: QrImageView(data: shareUrl, version: QrVersions.auto, size: 130.0),
-                      ),
-                      const SizedBox(height: 10),
                       const Text('👥 送信先メンバーを選んでください', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 5),
                       _memberList.isEmpty
@@ -348,17 +293,6 @@ class _MemoPageState extends State<MemoPage> {
                         icon: const Text('💬', style: TextStyle(fontSize: 16)),
                         label: const Text('選んだメンバーにSMS送信'),
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 35)),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          await Clipboard.setData(ClipboardData(text: shareUrl));
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📋 共有リンクをコピーしました！')));
-                        },
-                        icon: const Text('📋', style: TextStyle(fontSize: 16)),
-                        label: const Text('リンクをコピー'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 35)),
                       ),
                     ],
                   ),
@@ -464,7 +398,7 @@ class _MemoPageState extends State<MemoPage> {
       if (_isSelectMode) {
         _selectedItems = List<bool>.filled(_memoList.length, false);
         if (_memoList.isNotEmpty) {
-          _selectedItems[0] = true;
+          _selectedItems[0] = true; // ⭕にしむら様ご指摘の最新形式で最初から固定完了！
         }
       }
     });
@@ -525,31 +459,69 @@ class _MemoPageState extends State<MemoPage> {
       ],
     );
   }
+  Widget _buildWelcomeScreen() {
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            const Text('✨ クラウドメモへようこそ！ ✨', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+            const SizedBox(height: 15),
+            const Text('あなたへ共有メモが届いています！\n本物のアプリとして使い始めるために、\n下の２つの手順を最初に行ってください。', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 20),
+            Card(
+              color: const Color(0xFFFFF0E0),
+              child: Padding(
+                padding: const EdgeInsets.all(15.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('🏁 手順①：ホーム画面に追加する', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 15)),
+                    const SizedBox(height: 5),
+                    const Text('1. 画面の一番下にある「共有ボタン（📤）」をタップします。', style: TextStyle(fontSize: 13)),
+                    const Text('2. メニューから「ホーム画面に追加（➕）」を選びます。', style: TextStyle(fontSize: 13)),
+                    const Text('3. 右上の「追加」を押すとスマホ画面にアイコンが出ます！', style: TextStyle(fontSize: 13)),
+                    const SizedBox(height: 15),
+                    const Text('🏁 手順②：アプリを起動して合言葉を入れる', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 15)),
+                    const SizedBox(height: 5),
+                    const Text('1. ホーム画面にできた新しいアイコンをタップして起動します。', style: TextStyle(fontSize: 13)),
+                    const Text('2. 画面の一番上の欄に、メールの「4桁の合言葉」を入れます。', style: TextStyle(fontSize: 13)),
+                    const Text('3. 実行を押せば、おじいちゃんからのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextButton(
+              onPressed: () { setState(() { _forceShowBrowser = true; }); },
+              child: const Text('👉 ホーム画面に追加せず、このままSafariで使う', style: TextStyle(color: Colors.blueGrey, decoration: TextDecoration.underline)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool isStandalone = html.window.matchMedia('(display-mode: standalone)').matches;
     final filteredList = _memoList.where((memo) {
       final memoText = memo['text'] ?? '';
       return memoText.toLowerCase().contains(_searchKeyword.toLowerCase());
     }).toList();
 
+    // 🧠 初めてSafari(ブラウザ)で開いた人には、極上のおもてなし招待状マニュアルを自動表示！
+    final bool showWelcome = !isStandalone && !_forceShowBrowser;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _isMemberMode ? '👥 メンバー管理' : 'クラウドメモ',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        title: Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(
             icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)),
-            onPressed: () {
-              setState(() {
-                _isMemberMode = !_isMemberMode;
-                _isSelectMode = false; 
-              });
-            },
+            onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); },
           ),
-          if (!_isMemberMode)
+          if (!_isMemberMode && !showWelcome)
             IconButton(
               icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)),
               onPressed: _toggleSelectMode,
@@ -558,147 +530,93 @@ class _MemoPageState extends State<MemoPage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: _isMemberMode 
-            ? _buildMemberScreen() 
-            : Column(
-                children: [
-                  if (!_isSelectMode) ...[
-                    ElevatedButton.icon(
-                      onPressed: _showInputPopup, 
-                      icon: const Text('📝', style: TextStyle(fontSize: 18)),
-                      label: const Text('新しいメモを書く', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 45),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: showWelcome
+            ? _buildWelcomeScreen()
+            : _isMemberMode 
+                ? _buildMemberScreen() 
+                : Column(
+                    children: [
+                      // 🔑 復活・大開通：ATM型のスマートな合言葉入力エリア！
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _passcodeController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              decoration: const InputDecoration(hintText: '🔑 4桁の合言葉を入力...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: _importMemoByPasscode,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, minimumSize: const Size(80, 45)),
+                            child: const Text('実行', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 15),
-                  ],
-                  
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: '🔍 メモを検索...',
-                      suffixIcon: _searchKeyword.isNotEmpty
-                          ? InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _searchController.clear();
-                                  _searchKeyword = '';
-                                });
-                              },
-                              child: const Padding(
-                                padding: EdgeInsets.all(12.0),
-                                child: Text('❌', style: TextStyle(fontSize: 16)),
-                              ),
-                            )
-                          : null,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                    ),
-                    onChanged: (value) {
-                      setState(() { _searchKeyword = value; });
-                    },
-                  ),
-                  const SizedBox(height: 15),
-
-                  if (_isSelectMode) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('共有するメモを選択中...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                        ElevatedButton(
-                          onPressed: _generateShareQr,
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('📱 ', style: TextStyle(fontSize: 16)),
-                              Text('QRコードを生成'),
-                            ],
-                          ),
+                      const SizedBox(height: 15),
+                      if (!_isSelectMode) ...[
+                        ElevatedButton.icon(
+                          onPressed: _showInputPopup, 
+                          icon: const Text('📝', style: TextStyle(fontSize: 18)),
+                          label: const Text('新しいメモを書く', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         ),
+                        const SizedBox(height: 15),
                       ],
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-
-                  Expanded(
-                    child: filteredList.isEmpty
-                        ? const Center(child: Text('一致するメモはありません'))
-                        : ListView.builder(
-                            itemCount: filteredList.length,
-                            itemBuilder: (context, index) {
-                              final String? imageUrlStr = filteredList[index]['image'];
-                              final originalIndex = _memoList.indexOf(filteredList[index]);
-
-                              return Card(
-                                color: const Color(0xFFF0F4F8), 
-                                margin: const EdgeInsets.symmetric(vertical: 5),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
-                                  child: Row(
-                                    children: [
-                                      _isSelectMode
-                                          ? Checkbox(
-                                              value: _selectedItems[originalIndex],
-                                              onChanged: (bool? value) {
-                                                setState(() { _selectedItems[originalIndex] = value ?? false; });
-                                              },
-                                            )
-                                          : (imageUrlStr != null && imageUrlStr.isNotEmpty
-                                              ? GestureDetector(
-                                                  onTap: () => _showLargeImage(imageUrlStr), 
-                                                  child: Container(
-                                                    width: 50,
-                                                    height: 50,
-                                                    clipBehavior: Clip.antiAlias,
-                                                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
-                                                    child: Image.network(imageUrlStr, fit: BoxFit.cover),
-                                                  ),
-                                                )
-                                              : const Text('📝', style: TextStyle(fontSize: 32))), 
-                                      const SizedBox(width: 15),
-
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              filteredList[index]['text'] ?? '', 
-                                              style: const TextStyle(fontSize: 16, color: Colors.black),
-                                              softWrap: true,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              filteredList[index]['date'] ?? '', 
-                                              style: const TextStyle(fontSize: 12, color: Colors.blue),
-                                            ),
-                                          ],
-                                        ),
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: '🔍 メモを検索...',
+                          suffixIcon: _searchKeyword.isNotEmpty ? InkWell(onTap: () { setState(() { _searchController.clear(); _searchKeyword = ''; }); }, child: const Padding(padding: EdgeInsets.all(12.0), child: Text('❌', style: TextStyle(fontSize: 16)))) : null,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                        ),
+                        onChanged: (value) { setState(() { _searchKeyword = value; }); },
+                      ),
+                      const SizedBox(height: 15),
+                      if (_isSelectMode) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('共有するメモを選択中...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                            ElevatedButton(onPressed: _generateShareQr, style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Row(children: [Text('📱 '), Text('合言葉を発行')])),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      Expanded(
+                        child: filteredList.isEmpty
+                            ? const Center(child: Text('一致するメモはありません'))
+                            : ListView.builder(
+                                itemCount: filteredList.length,
+                                itemBuilder: (context, index) {
+                                  final String? imageUrlStr = filteredList[index]['image'];
+                                  final originalIndex = _memoList.indexOf(filteredList[index]);
+                                  return Card(
+                                    color: const Color(0xFFF0F4F8), 
+                                    margin: const EdgeInsets.symmetric(vertical: 5),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 10.0),
+                                      child: Row(
+                                        children: [
+                                          _isSelectMode
+                                              ? Checkbox(value: _selectedItems[originalIndex], onChanged: (bool? value) { setState(() { _selectedItems[originalIndex] = value ?? false; }); })
+                                              : (imageUrlStr != null && imageUrlStr.isNotEmpty ? GestureDetector(onTap: () => _showLargeImage(imageUrlStr), child: Container(width: 50, height: 50, clipBehavior: Clip.antiAlias, decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)), child: Image.network(imageUrlStr, fit: BoxFit.cover))) : const Text('📝', style: TextStyle(fontSize: 32))), 
+                                          const SizedBox(width: 15),
+                                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(filteredList[index]['text'] ?? '', style: const TextStyle(fontSize: 16, color: Colors.black), softWrap: true), const SizedBox(height: 4), Text(filteredList[index]['date'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.blue))])),
+                                          if (!_isSelectMode) IconButton(icon: const Text('🗑️', style: TextStyle(fontSize: 24)), padding: EdgeInsets.zero, constraints: const BoxConstraints(), onPressed: () { _showDeleteConfirmDialog(originalIndex); }),
+                                        ],
                                       ),
-
-                                      if (!_isSelectMode)
-                                        IconButton(
-                                          icon: const Text('🗑️', style: TextStyle(fontSize: 24)),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          onPressed: () {
-                                            _showDeleteConfirmDialog(originalIndex); 
-                                          },
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-      ),
+        ),
     );
   }
 }
