@@ -567,8 +567,7 @@ class _MemoPageState extends State<MemoPage> {
                           Expanded(
                             child: TextField(
                               controller: _passcodeController,
-                              keyboardType: TextInputType.number, 
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              textCapitalization: TextCapitalization.characters,
                               decoration: const InputDecoration(hintText: '🔑 4桁の合言葉を入力...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)),
                             ),
                           ),
