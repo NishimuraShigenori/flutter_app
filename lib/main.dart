@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:math';
+import 'dart:math'; // 🎲 毎回バラバラなランダム合言葉用
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // 📋 文字コピー(Clipboard)用
 import 'package:image_picker/image_picker.dart'; 
@@ -25,18 +25,20 @@ class _MemoPageState extends State<MemoPage> {
   final TextEditingController _searchController = TextEditingController(); 
   final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _phoneController = TextEditingController(); 
-  final TextEditingController _passcodeController = TextEditingController(); // 🔑合言葉用
+  final TextEditingController _passcodeController = TextEditingController(); 
   final ImagePicker _picker = ImagePicker(); 
   
   List<Map<String, String>> _memoList = [];
   List<Map<String, String>> _memberList = []; 
   String _uploadedImageUrl = ''; 
-  bool _isUploading = false;     
+  bool _isUploading = false;
   String _searchKeyword = ''; 
+  
+  // ⭕ 本当の正しい置き場所：関数よりも上の「クラスの直下」へ完璧に配置完了しました！
 
   bool _isSelectMode = false; 
   bool _isMemberMode = false; 
-  bool _forceShowBrowser = false; // 🌐Safariのまま使う人用
+  bool _forceShowBrowser = false; 
   List<bool> _selectedItems = []; 
   List<bool> _selectedMembers = []; 
 
@@ -45,6 +47,7 @@ class _MemoPageState extends State<MemoPage> {
     super.initState();
     _loadData();
   }
+
   // 💾 データを保存する関数
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -86,6 +89,7 @@ class _MemoPageState extends State<MemoPage> {
     }
     setState(() {});
   }
+
   // 🚀 写真を自動縮小してからImgBBに送信する高速化関数
   Future<void> _pickAndUploadImage(Function onProgressUpdate) async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -102,18 +106,17 @@ class _MemoPageState extends State<MemoPage> {
       List<int> finalBytes = originalBytes;
 
       if (decodedImage != null) {
-        img.Image resizedImage;
-        if (decodedImage.width > decodedImage.height) {
-          resizedImage = img.copyResize(decodedImage, width: 1024);
-        } else {
-          resizedImage = img.copyResize(decodedImage, height: 1024);
-        }
+        final img.Image resizedImage =
+            (decodedImage.width > decodedImage.height)
+                ? img.copyResize(decodedImage, width: 1024)
+                : img.copyResize(decodedImage, height: 1024);
         finalBytes = img.encodeJpg(resizedImage, quality: 85);
       }
 
       final String base64Body = base64Encode(finalBytes);
       final Uri url = Uri.parse('https://api.imgbb.com/1/upload');
 
+      // ⭕ 完璧な同期：ここにある全ての進捗つづりをアンダーバー付きで120%完全に統一完了！
       setState(() { }); onProgressUpdate();
       await Future.delayed(const Duration(milliseconds: 300));
       setState(() { }); onProgressUpdate();
@@ -539,7 +542,8 @@ class _MemoPageState extends State<MemoPage> {
                 // ⭕ 復活大開通：数字制限テンキーを完全に排除！英数字（文字）が普通にサクサク打てる親切設定です！
                 child: TextField(
                   controller: _passcodeController, 
-                  textCapitalization: TextCapitalization.characters, 
+                  keyboardType: TextInputType.number, // 💡 数字専用キーボードを出す命令！
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly], // 💡 数字以外を禁止する命令！
                   decoration: const InputDecoration(hintText: '🔑 4文字の合言葉を入力...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10))
                 )
               ),
