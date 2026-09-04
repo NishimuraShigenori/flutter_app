@@ -22,7 +22,7 @@ class MemoPage extends StatefulWidget {
 
 class _MemoPageState extends State<MemoPage> {
   final TextEditingController _controller = TextEditingController();
-  final TextEditingController _searchController = TextEditingController(); 
+  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _phoneController = TextEditingController(); 
   final TextEditingController _passcodeController = TextEditingController(); 
@@ -278,9 +278,9 @@ class _MemoPageState extends State<MemoPage> {
       final String formattedMsg =
           '【クラウドメモ】\n'
           'あなたへ共有メモが届きました！\n\n'
-          '📲アプリを開いて下の「合言葉」を入れてね！\n'
+          'アプリを開いて下の「合言葉」を入れてね！\n'
           '👉 合言葉：$randomPasscode\n\n'
-          '🛑重要：初めての人は先にコチラで設定。\n'
+          '🛑重要：初めての人は先にアプリを設定。\n'
           '$appUrl\n'
           'をタップしてください。';
 
@@ -437,7 +437,7 @@ class _MemoPageState extends State<MemoPage> {
                       color: const Color(0xFFE8F0F8),
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
-                        leading: const Text('👥', style: TextStyle(fontSize: 28)),
+                        leading: const Text('👤', style: TextStyle(fontSize: 28)),
                         title: Text(_memberList[mIdx]['name'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         subtitle: Text(_memberList[mIdx]['phone'] ?? '', style: const TextStyle(fontSize: 14, color: Colors.blueGrey)),
                         trailing: IconButton(
@@ -502,7 +502,7 @@ class _MemoPageState extends State<MemoPage> {
       appBar: AppBar(
         // ⭕ 大進化①：タイトルの「クラウドメモ」の文字のすぐ右側に、フォルダ不要で1万%確実に映る2人絵文字（👥）を美しく直結！
         // ⭕ 大進化：タイトルの「クラウドメモ」の右側にあった不要な人物アイコンを完全に消去し、スッキリした美しい文字だけに統一しました！
-        title: Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
         actions: [
           if (!showWelcome) ...[
