@@ -507,7 +507,7 @@ class _MemoPageState extends State<MemoPage> {
         backgroundColor: Colors.blue,
         actions: [
           IconButton(icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)), onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); }),
-          if (!_isMemberMode) IconButton(icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
+          if (!_isMemberMode && !showWelcome) IconButton(icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
         ],
       ),
       body: Padding(
