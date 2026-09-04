@@ -406,7 +406,7 @@ class _MemoPageState extends State<MemoPage> {
       children: [
         const Text('👥 新しいメンバーの登録', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         const SizedBox(height: 10),
-        TextField(controller: _nameController, decoration: const InputDecoration(hintText: 'お名前（例：お孫さん）', border: OutlineInputBorder())),
+        TextField(controller: _nameController, decoration: const InputDecoration(hintText: 'お名前（例：山田さん）', border: OutlineInputBorder())),
         const SizedBox(height: 10),
         TextField(controller: _phoneController, keyboardType: TextInputType.phone, decoration: const InputDecoration(hintText: '携帯電話番号（ハイフンなし）', border: OutlineInputBorder())),
         const SizedBox(height: 10),
@@ -503,7 +503,7 @@ class _MemoPageState extends State<MemoPage> {
     final bool showWelcome = !isStandalone;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(_isMemberMode ? '👤 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)), onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); }),
