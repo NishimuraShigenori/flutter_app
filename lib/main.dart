@@ -436,11 +436,7 @@ class _MemoPageState extends State<MemoPage> {
                       color: const Color(0xFFE8F0F8),
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
-                        // 💡 解決：明るい青の丸型背景の中に、白くクッキリ輝く2人アイコン（👥）を美しく配置しました！
-                        leading: const CircleAvatar(
-                          backgroundColor: Colors.blue,
-                          child: Icon(Icons.people, color: Colors.white, size: 22),
-                        ),
+                        leading: const Text('👥', style: TextStyle(fontSize: 28)),
                         title: Text(_memberList[mIdx]['name'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         subtitle: Text(_memberList[mIdx]['phone'] ?? '', style: const TextStyle(fontSize: 14, color: Colors.blueGrey)),
                         trailing: IconButton(
