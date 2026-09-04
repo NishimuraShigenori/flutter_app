@@ -504,8 +504,8 @@ class _MemoPageState extends State<MemoPage> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            if (!_isMemberMode && !showWelcome) const Padding(padding: EdgeInsets.only(left: 6), child: Text('👥', style: TextStyle(fontSize: 22))),
+            Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            if (!_isMemberMode && !showWelcome) const Padding(padding: EdgeInsets.only(left: 6), child: Text('👤', style: TextStyle(fontSize: 22))),
           ],
         ),
         backgroundColor: Colors.blue,
@@ -513,7 +513,7 @@ class _MemoPageState extends State<MemoPage> {
         actions: [
           if (!showWelcome) ...[
             IconButton(
-              icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)),
+              icon: Text(_isMemberMode ? '📝' : '👤', style: const TextStyle(fontSize: 24)),
               onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); },
             ),
             if (!_isMemberMode) IconButton(icon: const Text('🤝', style: TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
