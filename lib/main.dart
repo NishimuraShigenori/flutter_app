@@ -481,7 +481,7 @@ class _MemoPageState extends State<MemoPage> {
                     const SizedBox(height: 5),
                     const Text('1. ホーム画面にできた新しいアイコンをタップして起動します。', style: TextStyle(fontSize: 13)),
                     const Text('2. 画面の一番上の欄に、メールの「4文字の合言葉」を入れます。', style: TextStyle(fontSize: 13)),
-                    const Text('3. 実行を押せば、友達や家族からのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
+                    const Text('3. 実行を押せば、家族や友達からのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
@@ -507,7 +507,7 @@ class _MemoPageState extends State<MemoPage> {
         backgroundColor: Colors.blue,
         actions: [
           IconButton(icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)), onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); }),
-          if (!_isMemberMode && !showWelcome) IconButton(icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
+          if (!_isMemberMode) IconButton(icon: Text(_isSelectMode ? '❌' : '🤝', style: const TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
         ],
       ),
       body: Padding(
