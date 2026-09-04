@@ -503,7 +503,7 @@ class _MemoPageState extends State<MemoPage> {
     final bool showWelcome = !isStandalone;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isMemberMode ? '👤 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)), onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); }),
