@@ -276,12 +276,13 @@ class _MemoPageState extends State<MemoPage> {
       
       // 🌟 大進化：にしむら様が導き出した、プロもうなる極上の新メッセージ導線構造！
       final String formattedMsg =
-          '1、【クラウドメモ】\n'
-          '2、あなたへ共有メモが届きました！\n\n'
-          '3、📲アプリを開いて下の「合言葉」を入れてね！\n'
+          '【クラウドメモ】\n'
+          'あなたへ共有メモが届きました！\n\n'
+          '📲アプリを開いて下の「合言葉」を入れてね！\n'
           '👉 合言葉：$randomPasscode\n\n'
-          '4、🛑重要：初めての人は先にコチラで設定。\n'
-          '$appUrl';
+          '🛑重要：初めての人は先にコチラで設定。\n'
+          '$appUrl\n'
+          'をタップしてください。';
 
       showDialog(
         context: context,
@@ -461,7 +462,7 @@ class _MemoPageState extends State<MemoPage> {
           children: [
             const Text('✨ クラウドメモへようこそ！ ✨', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
             const SizedBox(height: 15),
-            const Text('あなたへ共有メモが届いています！\n本物のアプリとして使い始めるために、\n下の２つの手順を最初に行ってください。', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+            const Text('あなたへ共有メモが届いています！\nアプリとして使い始めるために、\n下の２つの手順を最初に行ってください。', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
             const SizedBox(height: 20),
             Card(
               color: const Color(0xFFFFF0E0),
@@ -470,9 +471,9 @@ class _MemoPageState extends State<MemoPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('🏁 手順①：ホーム画面に追加する', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 15)),
+                    const Text('🏁 手順①：アプリをホーム画面に追加する', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 15)),
                     const SizedBox(height: 5),
-                    const Text('1. 画面の一番下にある「共有ボタン（📤）」をタップします。', style: TextStyle(fontSize: 13)),
+                    const Text('1. 画面の一番下にある3点リーダーから「共有ボタン（📤）」をタップします。', style: TextStyle(fontSize: 13)),
                     const Text('2. メニューから「ホーム画面に追加（➕）」を選びます。', style: TextStyle(fontSize: 13)),
                     const Text('3. 右上の「追加」を押すとスマホ画面にアイコンが出ます！', style: TextStyle(fontSize: 13)),
                     const SizedBox(height: 15),
@@ -480,7 +481,7 @@ class _MemoPageState extends State<MemoPage> {
                     const SizedBox(height: 5),
                     const Text('1. ホーム画面にできた新しいアイコンをタップして起動します。', style: TextStyle(fontSize: 13)),
                     const Text('2. 画面の一番上の欄に、メールの「4文字の合言葉」を入れます。', style: TextStyle(fontSize: 13)),
-                    const Text('3. 実行を押せば、おじいちゃんからのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
+                    const Text('3. 実行を押せば、友達や家族からのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
