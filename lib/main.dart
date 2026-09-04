@@ -501,19 +501,13 @@ class _MemoPageState extends State<MemoPage> {
     return Scaffold(
       appBar: AppBar(
         // ⭕ 大進化①：タイトルの「クラウドメモ」の文字のすぐ右側に、フォルダ不要で1万%確実に映る2人絵文字（👥）を美しく直結！
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            if (!_isMemberMode && !showWelcome) const Padding(padding: EdgeInsets.only(left: 6), child: Text('👤', style: TextStyle(fontSize: 22))),
-          ],
-        ),
+        // ⭕ 大進化：タイトルの「クラウドメモ」の右側にあった不要な人物アイコンを完全に消去し、スッキリした美しい文字だけに統一しました！
+        title: Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
-        // ⭕ 大進化②：右端のボタンの裏側も、バラバラ直置きに完全対応した、美しくクッキリ映る2人絵文字ボタン（👥）へ統一完了！
         actions: [
           if (!showWelcome) ...[
             IconButton(
-              icon: Text(_isMemberMode ? '📝' : '👤', style: const TextStyle(fontSize: 24)),
+              icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)),
               onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); },
             ),
             if (!_isMemberMode) IconButton(icon: const Text('🤝', style: TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
