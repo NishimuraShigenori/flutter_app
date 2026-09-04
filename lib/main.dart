@@ -496,19 +496,24 @@ class _MemoPageState extends State<MemoPage> {
   @override
   Widget build(BuildContext context) {
     final bool isStandalone = html.window.matchMedia('(display-mode: standalone)').matches;
-    final filteredList = _memoList.where((memo) {
-      final memoText = memo['text'] ?? '';
-      return memoText.toLowerCase().contains(_searchKeyword.toLowerCase());
-    }).toList();
+    final filteredList = _memoList.where((memo) => (memo['text'] ?? '').toLowerCase().contains(_searchKeyword.toLowerCase())).toList();
     final bool showWelcome = !isStandalone;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        // ⭕ 大進化①：タイトルの「クラウドメモ」の文字のすぐ右側に、フォルダ不要で1万%確実に映る2人絵文字（👥）を美しく直結！
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_isMemberMode ? '👥 メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            if (!_isMemberMode && !showWelcome) const Padding(padding: EdgeInsets.only(left: 6), child: Text('👥', style: TextStyle(fontSize: 22))),
+          ],
+        ),
         backgroundColor: Colors.blue,
+        // ⭕ 大進化②：右端のボタンの裏側も、バラバラ直置きに完全対応した、美しくクッキリ映る2人絵文字ボタン（👥）へ統一完了！
         actions: [
           if (!showWelcome) ...[
             IconButton(
-              icon: Icon(_isMemberMode ? Icons.edit : Icons.people, color: Colors.white, size: 28),
+              icon: Text(_isMemberMode ? '📝' : '👥', style: const TextStyle(fontSize: 24)),
               onPressed: () { setState(() { _isMemberMode = !_isMemberMode; _isSelectMode = false; }); },
             ),
             if (!_isMemberMode) IconButton(icon: const Text('🤝', style: TextStyle(fontSize: 24)), onPressed: _toggleSelectMode),
