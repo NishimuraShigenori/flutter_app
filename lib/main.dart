@@ -475,13 +475,13 @@ class _MemoPageState extends State<MemoPage> {
                     const SizedBox(height: 5),
                     const Text('1. 画面の一番下にある3点リーダーから「共有ボタン（📤）」をタップします。', style: TextStyle(fontSize: 13)),
                     const Text('2. メニューから「ホーム画面に追加（➕）」を選びます。', style: TextStyle(fontSize: 13)),
-                    const Text('3. 右上の「追加」を押すとスマホ画面にアイコンが出ます！', style: TextStyle(fontSize: 13)),
+                    const Text('3. 右上の「追加」を押すとスマホ画面にアプリアイコンが出ます！', style: TextStyle(fontSize: 13)),
                     const SizedBox(height: 15),
                     const Text('🏁 手順②：アプリを起動して合言葉を入れる', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 15)),
                     const SizedBox(height: 5),
                     const Text('1. ホーム画面にできた新しいアイコンをタップして起動します。', style: TextStyle(fontSize: 13)),
                     const Text('2. 画面の一番上の欄に、メールの「4文字の合言葉」を入れます。', style: TextStyle(fontSize: 13)),
-                    const Text('3. 実行を押せば、家族や友達からのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
+                    const Text('3. 「実行」を押せば、家族や友達からのメモが1秒で届きます！', style: TextStyle(fontSize: 13)),
                   ],
                 ),
               ),
@@ -500,7 +500,6 @@ class _MemoPageState extends State<MemoPage> {
     final bool showWelcome = !isStandalone;
     return Scaffold(
       appBar: AppBar(
-        // ⭕ 大進化①：タイトルの「クラウドメモ」の文字のすぐ右側に、フォルダ不要で1万%確実に映る2人絵文字（👥）を美しく直結！
         // ⭕ 大進化：タイトルの「クラウドメモ」の右側にあった不要な人物アイコンを完全に消去し、スッキリした美しい文字だけに統一しました！
         title: Text(_isMemberMode ? 'メンバー管理' : 'クラウドメモ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue,
